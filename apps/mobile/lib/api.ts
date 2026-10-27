@@ -9,6 +9,9 @@ import {
   TransactionType,
   Budget,
   DashboardSummary,
+  NotificationEvent,
+  StatementPreviewSummary,
+  StatementPreviewRow,
 } from '../types';
 
 const getBaseUrl = (): string => {
@@ -280,6 +283,73 @@ export const api = {
     const json: ApiResponse<DashboardSummary> = await res.json();
     if (!res.ok || !json.success || !json.data) {
       throw new Error(json.error?.message || 'Failed to fetch dashboard summary');
+    }
+    return json.data;
+  },
+
+  // Notifications
+  getNotifications: async (): Promise<{ notifications: NotificationEvent[]; unreadCount: number }> => {
+    const res = await fetch(`${API_BASE_URL}/notifications`, {
+      headers: authHeaders(),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success || !json.data) {
+      throw new Error(json.error?.message || 'Failed to fetch notifications');
+    }
+    return json.data;
+  },
+
+  markNotificationAsRead: async (id: string): Promise<void> => {
+    const res = await fetch(`${API_BASE_URL}/notifications/${id}/read`, {
+      method: 'PATCH',
+      headers: authHeaders(),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success) {
+      throw new Error(json.error?.message || 'Failed to update notification');
+    }
+  },
+
+  clearNotifications: async (): Promise<void> => {
+    const res = await fetch(`${API_BASE_URL}/notifications/read`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success) {
+      throw new Error(json.error?.message || 'Failed to clear notifications');
+    }
+  },
+
+  // Statements
+  previewStatement: async (payload: {
+    accountId: string;
+    csvContent: string;
+  }): Promise<{ summary: StatementPreviewSummary; rows: StatementPreviewRow[] }> => {
+    const res = await fetch(`${API_BASE_URL}/statements/preview`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(payload),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success || !json.data) {
+      throw new Error(json.error?.message || 'Failed to parse statement preview');
+    }
+    return json.data;
+  },
+
+  importStatement: async (payload: {
+    accountId: string;
+    transactions: any[];
+  }): Promise<{ importedCount: number; skippedCount: number; newBalancePaise: string; alertsTriggeredCount: number }> => {
+    const res = await fetch(`${API_BASE_URL}/statements/import`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(payload),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success || !json.data) {
+      throw new Error(json.error?.message || 'Failed to import statement transactions');
     }
     return json.data;
   },

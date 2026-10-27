@@ -5,6 +5,7 @@ import { prisma } from '../utils/prisma.js';
 import { AuthenticatedRequest } from '../middleware/auth.middleware.js';
 import { AppError } from '../middleware/error.middleware.js';
 import { generateTransactionFingerprint } from '../utils/fingerprint.js';
+import { evaluateBudgetThresholds } from '../utils/alert.utils.js';
 
 export const createTransactionSchema = z.object({
   accountId: z.string().min(1, 'Account ID is required'),
@@ -147,6 +148,13 @@ export const createTransaction = async (
 
       return transaction;
     }, { maxWait: 10000, timeout: 20000 });
+
+    // Evaluate budget threshold alerts asynchronously
+    if (body.type === 'EXPENSE') {
+      evaluateBudgetThresholds(prisma, userId).catch((err) =>
+        console.error('Threshold alert evaluation failed:', err)
+      );
+    }
 
     res.status(201).json({
       success: true,

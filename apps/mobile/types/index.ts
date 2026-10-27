@@ -109,6 +109,40 @@ export interface DashboardSummary {
   recentTransactions: Transaction[];
 }
 
+export interface NotificationEvent {
+  id: string;
+  userId: string;
+  title: string;
+  message: string;
+  type: string; // THRESHOLD_70, THRESHOLD_90, THRESHOLD_100, SYSTEM
+  isRead: boolean;
+  metadata?: any;
+  createdAt: string;
+}
+
+export interface StatementPreviewRow {
+  rowNumber: number;
+  date: string;
+  rawDate: string;
+  description: string;
+  merchantName: string;
+  amountPaise: string;
+  type: 'EXPENSE' | 'INCOME';
+  categoryId?: string;
+  referenceNumber?: string;
+  fingerprintHash: string;
+  isDuplicate: boolean;
+}
+
+export interface StatementPreviewSummary {
+  totalRows: number;
+  newRowsCount: number;
+  duplicateRowsCount: number;
+  totalDebitPaise: string;
+  totalCreditPaise: string;
+  accountName: string;
+}
+
 export interface ApiResponse<T> {
   success: boolean;
   data?: T;

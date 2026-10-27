@@ -148,12 +148,12 @@ Bottom Tab Navigation (Expo Router):
   - Calculations for period boundaries, category spending, safe-to-spend allowance.
   - Automated tests for money calculations and date boundaries.
   - Mobile screens: Budgets tab with progress bars, budget setup, and Home dashboard integration.
-- [ ] **Stage 5 — Alerts and CSV import** (NEXT / AWAITING APPROVAL)
+- [x] **Stage 5 — Alerts and CSV import** (COMPLETED)
   - Configurable notification thresholds (70%, 90%, 100%).
-  - In-app notification events & Expo Push notification integration.
+  - In-app notification events & Notification Center modal.
   - Bank statement CSV parser (handling standard formats, e.g. HDFC, ICICI, SBI, custom).
-  - Deduplication pipeline & transaction reconciliation.
-- [ ] **Stage 6 — Insights and bank integration**
+  - Deduplication pipeline & transaction reconciliation preview.
+- [ ] **Stage 6 — Insights and bank integration** (NEXT / AWAITING APPROVAL)
   - Analytics controller: category breakdowns, weekly/monthly spending trends, recurring expense heuristic.
   - Research and architect authorized bank-data provider integration (e.g. Account Aggregator framework in India or Plaid/SaltEdge where applicable).
 - [ ] **Stage 7 — Hardening**

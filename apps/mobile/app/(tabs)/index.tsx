@@ -15,6 +15,7 @@ import {
   Tag,
   Target,
   ArrowRight,
+  Bell,
 } from 'lucide-react-native';
 import { api, formatPaiseToRupees } from '../../lib/api';
 import { useAuth } from '../../hooks/useAuth';
@@ -42,11 +43,20 @@ export default function HomeScreen() {
     enabled: isAuthenticated,
   });
 
+  // Fetch notifications for unread badge
+  const { data: notificationsData } = useQuery({
+    queryKey: ['notifications'],
+    queryFn: api.getNotifications,
+    enabled: isAuthenticated,
+  });
+  const unreadCount = notificationsData?.unreadCount || 0;
+
   const onRefresh = async () => {
     await Promise.all([
       refetchSummary(),
       queryClient.invalidateQueries({ queryKey: ['budgets'] }),
       queryClient.invalidateQueries({ queryKey: ['transactions'] }),
+      queryClient.invalidateQueries({ queryKey: ['notifications'] }),
       queryClient.invalidateQueries({ queryKey: ['me'] }),
     ]);
   };
@@ -95,7 +105,20 @@ export default function HomeScreen() {
                 icon={<LogIn size={14} color={theme.colors.textInverse} />}
               />
             ) : (
-              <Badge label="ACTIVE" variant="success" />
+              <TouchableOpacity
+                onPress={() => router.push('/notifications')}
+                style={styles.bellBtn}
+                accessibilityLabel="Notifications"
+              >
+                <Bell size={20} color={theme.colors.textPrimary} />
+                {unreadCount > 0 && (
+                  <View style={styles.bellBadge}>
+                    <Text style={styles.bellBadgeText}>
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
             )
           }
         />
@@ -243,7 +266,10 @@ export default function HomeScreen() {
           </View>
           <Button
             title="Import Bank Statement (CSV)"
-            onPress={() => {}}
+            onPress={() => {
+              if (!isAuthenticated) router.push('/auth');
+              else router.push('/import-statement');
+            }}
             variant="outline"
             icon={<FileSpreadsheet size={16} color={theme.colors.primary} />}
             style={styles.importBtn}
@@ -326,6 +352,31 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
+  },
+  bellBtn: {
+    position: 'relative',
+    padding: 8,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: theme.colors.surfaceBorder,
+  },
+  bellBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: theme.colors.alertRed,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  bellBadgeText: {
+    color: '#ffffff',
+    fontSize: 9,
+    fontWeight: theme.typography.weights.bold,
   },
   scrollContent: {
     paddingBottom: theme.spacing['4xl'],

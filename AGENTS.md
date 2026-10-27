@@ -137,13 +137,13 @@ Bottom Tab Navigation (Expo Router):
   - Set up Prisma with PostgreSQL connection and initial schema skeleton.
   - Set up Expo mobile app with Expo Router and design system tokens.
   - Verify both services boot and connect cleanly.
-- [ ] **Stage 3 — Authentication and transactions** (NEXT / AWAITING APPROVAL)
+- [x] **Stage 3 — Authentication and transactions** (COMPLETED)
   - Implement User and Account models with password hashing.
   - Registration, login, token refresh, and protected routes.
   - Category and Transaction models.
   - Transaction CRUD endpoints in controllers, CSV deduplication hash.
   - Mobile screens: Auth (Login/Register), Home balance widget, Manual Transaction entry modal, and Activity list.
-- [ ] **Stage 4 — Budgets and dashboard**
+- [ ] **Stage 4 — Budgets and dashboard** (NEXT / AWAITING APPROVAL)
   - Budget & BudgetCategory models.
   - Calculations for period boundaries, category spending, safe-to-spend allowance.
   - Automated tests for money calculations and date boundaries.

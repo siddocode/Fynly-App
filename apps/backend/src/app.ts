@@ -3,12 +3,16 @@ import cors from 'cors';
 import morgan from 'morgan';
 import { env } from './config/env.js';
 import { healthRouter } from './routes/health.routes.js';
+import { authRouter } from './routes/auth.routes.js';
+import { accountRouter } from './routes/account.routes.js';
+import { categoryRouter } from './routes/category.routes.js';
+import { transactionRouter } from './routes/transaction.routes.js';
 import { errorHandler, AppError } from './middleware/error.middleware.js';
 
 export const createApp = () => {
   const app = express();
 
-  // Basic Middleware
+  // Middleware
   app.use(cors({
     origin: env.CLIENT_ORIGIN === '*' ? '*' : env.CLIENT_ORIGIN.split(','),
     credentials: true,
@@ -20,9 +24,15 @@ export const createApp = () => {
     app.use(morgan('dev'));
   }
 
-  // Health routes mounted directly and under API_PREFIX
+  // Root & Health
   app.use('/health', healthRouter);
   app.use(`${env.API_PREFIX}/health`, healthRouter);
+
+  // Core API Routes
+  app.use(`${env.API_PREFIX}/auth`, authRouter);
+  app.use(`${env.API_PREFIX}/accounts`, accountRouter);
+  app.use(`${env.API_PREFIX}/categories`, categoryRouter);
+  app.use(`${env.API_PREFIX}/transactions`, transactionRouter);
 
   // Catch-all 404 handler
   app.use((_req, _res, next) => {

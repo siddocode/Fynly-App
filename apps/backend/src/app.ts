@@ -7,6 +7,8 @@ import { authRouter } from './routes/auth.routes.js';
 import { accountRouter } from './routes/account.routes.js';
 import { categoryRouter } from './routes/category.routes.js';
 import { transactionRouter } from './routes/transaction.routes.js';
+import { budgetRouter } from './routes/budget.routes.js';
+import { dashboardRouter } from './routes/dashboard.routes.js';
 import { errorHandler, AppError } from './middleware/error.middleware.js';
 
 export const createApp = () => {
@@ -33,6 +35,8 @@ export const createApp = () => {
   app.use(`${env.API_PREFIX}/accounts`, accountRouter);
   app.use(`${env.API_PREFIX}/categories`, categoryRouter);
   app.use(`${env.API_PREFIX}/transactions`, transactionRouter);
+  app.use(`${env.API_PREFIX}/budgets`, budgetRouter);
+  app.use(`${env.API_PREFIX}/dashboard`, dashboardRouter);
 
   // Catch-all 404 handler
   app.use((_req, _res, next) => {

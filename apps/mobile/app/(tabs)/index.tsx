@@ -11,7 +11,10 @@ import {
   TrendingDown,
   TrendingUp,
   ShieldCheck,
+  ShieldAlert,
   Tag,
+  Target,
+  ArrowRight,
 } from 'lucide-react-native';
 import { api, formatPaiseToRupees } from '../../lib/api';
 import { useAuth } from '../../hooks/useAuth';
@@ -20,47 +23,53 @@ import { Card } from '../../components/Card';
 import { Badge } from '../../components/Badge';
 import { Button } from '../../components/Button';
 import { Header } from '../../components/Header';
+import { BudgetStatusLevel } from '../../types';
 
 export default function HomeScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user, isAuthenticated } = useAuth();
 
-  // Fetch real profile data if authenticated
+  // Fetch consolidated dashboard summary
   const {
-    data: profile,
-    isLoading: profileLoading,
-    refetch: refetchProfile,
-    isRefetching: isRefetchingProfile,
+    data: summary,
+    isLoading: summaryLoading,
+    refetch: refetchSummary,
+    isRefetching,
   } = useQuery({
-    queryKey: ['me'],
-    queryFn: api.getMe,
-    enabled: isAuthenticated,
-  });
-
-  // Fetch recent transactions
-  const {
-    data: transactionsData,
-    isLoading: txLoading,
-    refetch: refetchTx,
-    isRefetching: isRefetchingTx,
-  } = useQuery({
-    queryKey: ['transactions', 'recent'],
-    queryFn: () => api.getTransactions({ limit: 5 }),
+    queryKey: ['dashboard'],
+    queryFn: api.getDashboardSummary,
     enabled: isAuthenticated,
   });
 
   const onRefresh = async () => {
     await Promise.all([
-      refetchProfile(),
-      refetchTx(),
-      queryClient.invalidateQueries({ queryKey: ['health'] }),
+      refetchSummary(),
+      queryClient.invalidateQueries({ queryKey: ['budgets'] }),
+      queryClient.invalidateQueries({ queryKey: ['transactions'] }),
+      queryClient.invalidateQueries({ queryKey: ['me'] }),
     ]);
   };
 
-  const isRefreshing = isRefetchingProfile || isRefetchingTx;
-  const recentTransactions = transactionsData?.transactions || [];
-  const totalBalancePaise = profile?.totalBalancePaise || '0';
+  const getStatusColor = (status?: BudgetStatusLevel): string => {
+    switch (status) {
+      case 'EXCEEDED':
+        return theme.colors.alertRed;
+      case 'WARNING_90':
+        return theme.colors.alertOrange;
+      case 'WARNING_70':
+        return theme.colors.alertAmber;
+      default:
+        return theme.colors.primary;
+    }
+  };
+
+  const totalBalancePaise = summary?.totalBalancePaise || '0';
+  const todaySpentPaise = summary?.todaySpentPaise || '0';
+  const monthSpentPaise = summary?.monthSpentPaise || '0';
+  const safeToSpendTodayPaise = summary?.safeToSpendTodayPaise || '0';
+  const budget = summary?.budget;
+  const recentTransactions = summary?.recentTransactions || [];
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -68,7 +77,7 @@ export default function HomeScreen() {
         contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
-            refreshing={isRefreshing}
+            refreshing={isRefetching}
             onRefresh={onRefresh}
             tintColor={theme.colors.primary}
           />
@@ -119,15 +128,93 @@ export default function HomeScreen() {
             <View>
               <Text style={styles.safeSpendLabel}>Safe to Spend Today</Text>
               <Text style={styles.safeSpendValue}>
-                {formatPaiseToRupees(0)}
+                {formatPaiseToRupees(safeToSpendTodayPaise)}
               </Text>
             </View>
-            <View style={styles.budgetStatusPill}>
-              <ShieldCheck size={16} color={theme.colors.primary} />
-              <Text style={styles.budgetStatusText}>On Track</Text>
+            <View
+              style={[
+                styles.budgetStatusPill,
+                { backgroundColor: `${getStatusColor(budget?.status)}20` },
+              ]}
+            >
+              {budget?.status === 'EXCEEDED' || budget?.status === 'WARNING_90' || budget?.status === 'WARNING_70' ? (
+                <ShieldAlert size={14} color={getStatusColor(budget?.status)} />
+              ) : (
+                <ShieldCheck size={14} color={theme.colors.primary} />
+              )}
+              <Text
+                style={[
+                  styles.budgetStatusText,
+                  { color: getStatusColor(budget?.status) },
+                ]}
+              >
+                {budget ? (budget.status === 'ON_TRACK' ? 'On Track' : budget.status) : 'Estimated'}
+              </Text>
             </View>
           </View>
         </Card>
+
+        {/* Monthly Budget Summary Widget */}
+        {isAuthenticated && (
+          <View style={styles.sectionWrap}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Spending & Budget</Text>
+              <TouchableOpacity onPress={() => router.push('/budgets')}>
+                <Text style={styles.linkText}>View Budgets</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Card style={styles.budgetWidget} variant="subtle">
+              <View style={styles.statGrid}>
+                <View style={styles.statBox}>
+                  <Text style={styles.statLabel}>Spent Today</Text>
+                  <Text style={styles.statAmount}>{formatPaiseToRupees(todaySpentPaise)}</Text>
+                </View>
+                <View style={styles.statDivider} />
+                <View style={styles.statBox}>
+                  <Text style={styles.statLabel}>This Month</Text>
+                  <Text style={styles.statAmount}>{formatPaiseToRupees(monthSpentPaise)}</Text>
+                </View>
+              </View>
+
+              {budget ? (
+                <View style={styles.budgetProgressSection}>
+                  <View style={styles.budgetBarHeader}>
+                    <Text style={styles.budgetBarLabel}>Monthly Limit</Text>
+                    <Text style={styles.budgetBarValues}>
+                      {formatPaiseToRupees(budget.spentPaise)} / {formatPaiseToRupees(budget.limitPaise)}
+                    </Text>
+                  </View>
+                  <View style={styles.progressBg}>
+                    <View
+                      style={[
+                        styles.progressFill,
+                        {
+                          width: `${Math.min(100, budget.usagePercentage)}%`,
+                          backgroundColor: getStatusColor(budget.status),
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.budgetDaysRemaining}>
+                    {budget.remainingDays} days remaining in this cycle
+                  </Text>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.setBudgetPrompt}
+                  onPress={() => router.push('/create-budget')}
+                >
+                  <View style={styles.promptLeft}>
+                    <Target size={16} color={theme.colors.primary} />
+                    <Text style={styles.promptText}>Set a monthly budget to track spending</Text>
+                  </View>
+                  <ArrowRight size={14} color={theme.colors.primary} />
+                </TouchableOpacity>
+              )}
+            </Card>
+          </View>
+        )}
 
         {/* Quick Action Shortcuts */}
         <View style={styles.actionsContainer}>
@@ -299,29 +386,123 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: theme.colors.primarySubtle,
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: 4,
     borderRadius: theme.borderRadius.full,
   },
   budgetStatusText: {
     fontSize: theme.typography.sizes.xs,
-    color: theme.colors.primary,
     fontWeight: theme.typography.weights.semibold,
   },
-  actionsContainer: {
+  sectionWrap: {
     marginTop: theme.spacing.xl,
     paddingHorizontal: theme.spacing.lg,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: theme.spacing.sm,
   },
   sectionTitle: {
     fontSize: theme.typography.sizes.base,
     fontWeight: theme.typography.weights.bold,
     color: theme.colors.textPrimary,
-    marginBottom: theme.spacing.md,
+  },
+  linkText: {
+    fontSize: theme.typography.sizes.xs,
+    color: theme.colors.primary,
+    fontWeight: theme.typography.weights.semibold,
+  },
+  budgetWidget: {
+    padding: theme.spacing.lg,
+  },
+  statGrid: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statBox: {
+    flex: 1,
+  },
+  statDivider: {
+    width: 1,
+    height: 36,
+    backgroundColor: theme.colors.surfaceBorder,
+    marginHorizontal: theme.spacing.md,
+  },
+  statLabel: {
+    fontSize: theme.typography.sizes.xs,
+    color: theme.colors.textMuted,
+  },
+  statAmount: {
+    fontSize: theme.typography.sizes.lg,
+    fontWeight: theme.typography.weights.bold,
+    color: theme.colors.textPrimary,
+    marginTop: 2,
+  },
+  budgetProgressSection: {
+    marginTop: theme.spacing.md,
+    paddingTop: theme.spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.surfaceBorder,
+  },
+  budgetBarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  budgetBarLabel: {
+    fontSize: theme.typography.sizes.xs,
+    color: theme.colors.textSecondary,
+  },
+  budgetBarValues: {
+    fontSize: theme.typography.sizes.xs,
+    fontWeight: theme.typography.weights.bold,
+    color: theme.colors.textPrimary,
+  },
+  progressBg: {
+    height: 6,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.full,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: theme.borderRadius.full,
+  },
+  budgetDaysRemaining: {
+    fontSize: 10,
+    color: theme.colors.textMuted,
+    marginTop: 4,
+    textAlign: 'right',
+  },
+  setBudgetPrompt: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: theme.spacing.md,
+    paddingTop: theme.spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.surfaceBorder,
+  },
+  promptLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  promptText: {
+    fontSize: theme.typography.sizes.xs,
+    color: theme.colors.primary,
+    fontWeight: theme.typography.weights.medium,
+  },
+  actionsContainer: {
+    marginTop: theme.spacing.xl,
+    paddingHorizontal: theme.spacing.lg,
   },
   actionGrid: {
     flexDirection: 'row',
     gap: theme.spacing.md,
+    marginTop: theme.spacing.sm,
   },
   actionBtn: {
     flex: 1,
@@ -332,11 +513,6 @@ const styles = StyleSheet.create({
   transactionsSection: {
     marginTop: theme.spacing.xl,
     paddingHorizontal: theme.spacing.lg,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
   },
   viewAllText: {
     fontSize: theme.typography.sizes.sm,

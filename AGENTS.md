@@ -143,12 +143,12 @@ Bottom Tab Navigation (Expo Router):
   - Category and Transaction models.
   - Transaction CRUD endpoints in controllers, CSV deduplication hash.
   - Mobile screens: Auth (Login/Register), Home balance widget, Manual Transaction entry modal, and Activity list.
-- [ ] **Stage 4 — Budgets and dashboard** (NEXT / AWAITING APPROVAL)
+- [x] **Stage 4 — Budgets and dashboard** (COMPLETED)
   - Budget & BudgetCategory models.
   - Calculations for period boundaries, category spending, safe-to-spend allowance.
   - Automated tests for money calculations and date boundaries.
   - Mobile screens: Budgets tab with progress bars, budget setup, and Home dashboard integration.
-- [ ] **Stage 5 — Alerts and CSV import**
+- [ ] **Stage 5 — Alerts and CSV import** (NEXT / AWAITING APPROVAL)
   - Configurable notification thresholds (70%, 90%, 100%).
   - In-app notification events & Expo Push notification integration.
   - Bank statement CSV parser (handling standard formats, e.g. HDFC, ICICI, SBI, custom).

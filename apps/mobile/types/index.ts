@@ -2,6 +2,7 @@ export type TransactionType = 'INCOME' | 'EXPENSE' | 'TRANSFER' | 'REFUND';
 export type TransactionStatus = 'PENDING' | 'SETTLED' | 'CANCELLED';
 export type AccountType = 'SAVINGS' | 'CURRENT' | 'CREDIT_CARD' | 'WALLET' | 'CASH';
 export type BudgetPeriod = 'DAILY' | 'WEEKLY' | 'MONTHLY';
+export type BudgetStatusLevel = 'ON_TRACK' | 'WARNING_70' | 'WARNING_90' | 'EXCEEDED';
 
 export interface FinancialAccount {
   id: string;
@@ -48,18 +49,64 @@ export interface Transaction {
   category?: Category | null;
 }
 
+export interface BudgetCategoryItem {
+  id: string;
+  categoryId: string;
+  category: Category;
+  limitPaise: string | number;
+  spentPaise: string | number;
+  remainingPaise: string | number;
+  usagePercentage: number;
+  status: BudgetStatusLevel;
+}
+
 export interface Budget {
   id: string;
-  userId: string;
   name: string;
   period: BudgetPeriod;
   limitPaise: string | number;
-  startDate: string;
-  endDate?: string | null;
-  spentPaise?: string | number;
-  alert70Sent: boolean;
-  alert90Sent: boolean;
-  alert100Sent: boolean;
+  spentPaise: string | number;
+  remainingPaise: string | number;
+  usagePercentage: number;
+  status: BudgetStatusLevel;
+  safeToSpendTodayPaise: string | number;
+  periodDetails: {
+    startDate: string;
+    endDate: string;
+    totalDays: number;
+    remainingDays: number;
+    daysElapsed: number;
+  };
+  categories: BudgetCategoryItem[];
+}
+
+export interface DashboardSummary {
+  totalBalancePaise: string;
+  todaySpentPaise: string;
+  monthSpentPaise: string;
+  safeToSpendTodayPaise: string;
+  budget?: {
+    id: string;
+    name: string;
+    limitPaise: string;
+    spentPaise: string;
+    remainingPaise: string;
+    usagePercentage: number;
+    status: BudgetStatusLevel;
+    remainingDays: number;
+    daysElapsed: number;
+    totalDays: number;
+  } | null;
+  topCategories: Array<{
+    id: string;
+    name: string;
+    color?: string | null;
+    icon?: string | null;
+    spentPaise: string;
+    percentage: number;
+  }>;
+  accountsCount: number;
+  recentTransactions: Transaction[];
 }
 
 export interface ApiResponse<T> {

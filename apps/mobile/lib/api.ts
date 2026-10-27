@@ -7,6 +7,8 @@ import {
   FinancialAccount,
   Category,
   TransactionType,
+  Budget,
+  DashboardSummary,
 } from '../types';
 
 const getBaseUrl = (): string => {
@@ -227,5 +229,58 @@ export const api = {
     if (!res.ok || !json.success) {
       throw new Error(json.error?.message || 'Failed to delete transaction');
     }
+  },
+
+  // Budgets
+  getBudgets: async (): Promise<Budget[]> => {
+    const res = await fetch(`${API_BASE_URL}/budgets`, {
+      headers: authHeaders(),
+    });
+    const json: ApiResponse<Budget[]> = await res.json();
+    if (!res.ok || !json.success || !json.data) {
+      throw new Error(json.error?.message || 'Failed to fetch budgets');
+    }
+    return json.data;
+  },
+
+  createBudget: async (payload: {
+    name: string;
+    period?: 'DAILY' | 'WEEKLY' | 'MONTHLY';
+    limitPaise: number | string;
+    categories?: Array<{ categoryId: string; limitPaise: number | string }>;
+  }): Promise<Budget> => {
+    const res = await fetch(`${API_BASE_URL}/budgets`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(payload),
+    });
+    const json: ApiResponse<Budget> = await res.json();
+    if (!res.ok || !json.success || !json.data) {
+      throw new Error(json.error?.message || 'Failed to save budget');
+    }
+    return json.data;
+  },
+
+  deleteBudget: async (id: string): Promise<void> => {
+    const res = await fetch(`${API_BASE_URL}/budgets/${id}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success) {
+      throw new Error(json.error?.message || 'Failed to delete budget');
+    }
+  },
+
+  // Dashboard Summary
+  getDashboardSummary: async (): Promise<DashboardSummary> => {
+    const res = await fetch(`${API_BASE_URL}/dashboard/summary`, {
+      headers: authHeaders(),
+    });
+    const json: ApiResponse<DashboardSummary> = await res.json();
+    if (!res.ok || !json.success || !json.data) {
+      throw new Error(json.error?.message || 'Failed to fetch dashboard summary');
+    }
+    return json.data;
   },
 };

@@ -1,0 +1,17 @@
+{
+  "name": "fynly",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev --workspace=@fynly/backend",
+    "dev:mobile": "npm run start --workspace=@fynly/mobile",
+    "test:backend": "npm run test --workspace=@fynly/backend",
+    "build:backend": "npm run build --workspace=@fynly/backend",
+    "prisma:generate": "npm run prisma:generate --workspace=@fynly/backend",
+    "prisma:migrate": "npm run prisma:migrate --workspace=@fynly/backend"
+  },
+  "devDependencies": {}
+}

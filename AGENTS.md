@@ -126,18 +126,18 @@ Bottom Tab Navigation (Expo Router):
 
 ## 6. Implementation Stages & Status Tracker
 
-- [ ] **Stage 1 — Inspect and plan** (CURRENT)
+- [x] **Stage 1 — Inspect and plan** (COMPLETED)
   - Inspect existing workspace (confirmed empty).
   - Create `README.md` and `AGENTS.md`.
   - Present concise implementation plan, major decisions, and risks.
   - Await user approval.
-- [ ] **Stage 2 — Foundation**
+- [x] **Stage 2 — Foundation** (COMPLETED)
   - Initialize monorepo workspace (`apps/backend` and `apps/mobile`).
   - Set up Express + TypeScript backend with Zod env validation, error middleware, and health check.
   - Set up Prisma with PostgreSQL connection and initial schema skeleton.
   - Set up Expo mobile app with Expo Router and design system tokens.
   - Verify both services boot and connect cleanly.
-- [ ] **Stage 3 — Authentication and transactions**
+- [ ] **Stage 3 — Authentication and transactions** (NEXT / AWAITING APPROVAL)
   - Implement User and Account models with password hashing.
   - Registration, login, token refresh, and protected routes.
   - Category and Transaction models.

@@ -1,0 +1,173 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum AccountType {
+  SAVINGS
+  CURRENT
+  CREDIT_CARD
+  WALLET
+  CASH
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+  TRANSFER
+  REFUND
+}
+
+enum TransactionStatus {
+  PENDING
+  SETTLED
+  CANCELLED
+}
+
+enum BudgetPeriod {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+model User {
+  id            String              @id @default(uuid())
+  email         String              @unique
+  name          String
+  passwordHash  String
+  currency      String              @default("INR")
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  accounts      FinancialAccount[]
+  transactions  Transaction[]
+  categories    Category[]
+  budgets       Budget[]
+  notifications NotificationEvent[]
+
+  @@map("users")
+}
+
+model FinancialAccount {
+  id           String        @id @default(uuid())
+  userId       String
+  name         String
+  type         AccountType   @default(SAVINGS)
+  balancePaise BigInt        @default(0)
+  currency     String        @default("INR")
+  color        String?
+  icon         String?
+  isArchived   Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@index([userId])
+  @@map("financial_accounts")
+}
+
+model Category {
+  id               String           @id @default(uuid())
+  userId           String?          // null for system-defined global defaults
+  name             String
+  slug             String
+  icon             String?
+  color            String?
+  isDefault        Boolean          @default(false)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  user             User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions     Transaction[]
+  budgetCategories BudgetCategory[]
+
+  @@unique([userId, slug])
+  @@map("categories")
+}
+
+model Transaction {
+  id              String            @id @default(uuid())
+  userId          String
+  accountId       String
+  categoryId      String?
+  type            TransactionType   @default(EXPENSE)
+  status          TransactionStatus @default(SETTLED)
+  amountPaise     BigInt            // Stored in integer paise (1 INR = 100 paise)
+  date            DateTime
+  description     String
+  merchantName    String?
+  notes           String?
+  fingerprintHash String?           // Deterministic sha256 fingerprint for deduplication
+  referenceNumber String?
+  isRecurring     Boolean           @default(false)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account         FinancialAccount  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  category        Category?         @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([userId, date])
+  @@index([accountId])
+  @@index([fingerprintHash])
+  @@map("transactions")
+}
+
+model Budget {
+  id           String           @id @default(uuid())
+  userId       String
+  name         String
+  period       BudgetPeriod     @default(MONTHLY)
+  limitPaise   BigInt           // Total overall limit in paise
+  startDate    DateTime
+  endDate      DateTime?
+  alert70Sent  Boolean          @default(false)
+  alert90Sent  Boolean          @default(false)
+  alert100Sent Boolean          @default(false)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categories   BudgetCategory[]
+
+  @@index([userId])
+  @@map("budgets")
+}
+
+model BudgetCategory {
+  id         String   @id @default(uuid())
+  budgetId   String
+  categoryId String
+  limitPaise BigInt   // Category specific limit in paise
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  budget     Budget   @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([budgetId, categoryId])
+  @@map("budget_categories")
+}
+
+model NotificationEvent {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  message   String
+  type      String   // e.g. THRESHOLD_70, THRESHOLD_90, THRESHOLD_100, SYSTEM
+  isRead    Boolean  @default(false)
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@map("notification_events")
+}

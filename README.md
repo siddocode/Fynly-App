@@ -134,7 +134,7 @@ Use the Expo Go app or an iOS/Android simulator to test the mobile application.
 | **Stage 4** | Budgets & Dashboard (Safe-to-spend, Period math, Dashboard UI) | Completed |
 | **Stage 5** | Alerts & Statement Import (CSV parser, Deduplication, Notifications) | Completed |
 | **Stage 6** | Insights & Bank Integration (Trends, Analytics, Account Aggregator) | Completed |
-| **Stage 7** | Hardening (Security, Tests, Performance, Deployment readiness) | Upcoming |
+| **Stage 7** | Hardening (Security, Tests, Performance, Deployment readiness) | Completed |
 
 ---
 

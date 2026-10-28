@@ -14,9 +14,14 @@ import { statementRouter } from './routes/statement.routes.js';
 import { analyticsRouter } from './routes/analytics.routes.js';
 import { bankSyncRouter } from './routes/bankSync.routes.js';
 import { errorHandler, AppError } from './middleware/error.middleware.js';
+import { helmetMiddleware, apiRateLimiter } from './middleware/security.middleware.js';
 
 export const createApp = () => {
   const app = express();
+
+  // Security Headers & Rate Limiting
+  app.use(helmetMiddleware);
+  app.use(apiRateLimiter);
 
   // Middleware
   app.use(cors({

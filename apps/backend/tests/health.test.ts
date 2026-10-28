@@ -36,4 +36,10 @@ describe('Health Endpoints', () => {
     expect(res.body.success).toBe(false);
     expect(res.body.error.message).toBe('Endpoint not found');
   });
+
+  it('HTTP responses include secure Helmet headers', async () => {
+    const res = await request(app).get('/health');
+    expect(res.headers).toHaveProperty('x-content-type-options', 'nosniff');
+    expect(res.headers).toHaveProperty('x-frame-options');
+  });
 });

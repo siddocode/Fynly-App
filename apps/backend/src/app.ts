@@ -11,6 +11,8 @@ import { budgetRouter } from './routes/budget.routes.js';
 import { dashboardRouter } from './routes/dashboard.routes.js';
 import { notificationRouter } from './routes/notification.routes.js';
 import { statementRouter } from './routes/statement.routes.js';
+import { analyticsRouter } from './routes/analytics.routes.js';
+import { bankSyncRouter } from './routes/bankSync.routes.js';
 import { errorHandler, AppError } from './middleware/error.middleware.js';
 
 export const createApp = () => {
@@ -41,6 +43,8 @@ export const createApp = () => {
   app.use(`${env.API_PREFIX}/dashboard`, dashboardRouter);
   app.use(`${env.API_PREFIX}/notifications`, notificationRouter);
   app.use(`${env.API_PREFIX}/statements`, statementRouter);
+  app.use(`${env.API_PREFIX}/analytics`, analyticsRouter);
+  app.use(`${env.API_PREFIX}/bank-sync`, bankSyncRouter);
 
   // Catch-all 404 handler
   app.use((_req, _res, next) => {

@@ -23,6 +23,13 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
+  sendOtp: (email: string, purpose: 'REGISTER' | 'LOGIN') => Promise<any>;
+  verifyOtp: (
+    email: string,
+    otp: string,
+    purpose: 'REGISTER' | 'LOGIN',
+    name?: string
+  ) => Promise<void>;
   logout: () => void;
   refreshProfile: () => Promise<void>;
 }
@@ -67,6 +74,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const sendOtp = async (email: string, purpose: 'REGISTER' | 'LOGIN') => {
+    setIsLoading(true);
+    try {
+      return await api.sendOtp({ email, purpose });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const verifyOtp = async (
+    email: string,
+    otp: string,
+    purpose: 'REGISTER' | 'LOGIN',
+    name?: string
+  ) => {
+    setIsLoading(true);
+    try {
+      const data = await api.verifyOtp({ email, otp, purpose, name });
+      setToken(data.tokens.accessToken);
+      setAuthToken(data.tokens.accessToken);
+      setUser(data.user);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const logout = () => {
     setUser(null);
     setToken(null);
@@ -82,6 +115,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAuthenticated: !!user && !!token,
         login,
         register,
+        sendOtp,
+        verifyOtp,
         logout,
         refreshProfile,
       }}

@@ -39,7 +39,7 @@ model User {
   id            String              @id @default(uuid())
   email         String              @unique
   name          String
-  passwordHash  String
+  passwordHash  String?
   currency      String              @default("INR")
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
@@ -170,4 +170,17 @@ model NotificationEvent {
 
   @@index([userId, isRead])
   @@map("notification_events")
+}
+
+model VerificationOtp {
+  id        String   @id @default(uuid())
+  email     String
+  otp       String
+  purpose   String   // 'REGISTER' | 'LOGIN'
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([email, purpose])
+  @@map("verification_otps")
 }

@@ -160,3 +160,111 @@ export interface HealthStatus {
   uptimeSeconds: number;
   environment: string;
 }
+
+export interface InsightsCategory {
+  id: string;
+  name: string;
+  slug: string;
+  color: string | null;
+  icon: string | null;
+  spentPaise: string;
+  count: number;
+  percentage: number;
+}
+
+export interface InsightsMerchant {
+  name: string;
+  spentPaise: string;
+  count: number;
+  percentage: number;
+}
+
+export interface WeeklyBreakdownItem {
+  weekIndex: number;
+  label: string;
+  startDate: string;
+  endDate: string;
+  spentPaise: string;
+  incomePaise: string;
+}
+
+export interface InsightsOverview {
+  period: {
+    year: number;
+    month: number;
+    monthLabel: string;
+    daysElapsed: number;
+    totalDays: number;
+    remainingDays: number;
+  };
+  summary: {
+    currentMonthSpentPaise: string;
+    currentMonthIncomePaise: string;
+    netSavingsPaise: string;
+    savingsRatePercentage: number;
+    prevMonthSpentPaise: string;
+    prevMonthIncomePaise: string;
+    monthOverMonth: {
+      differencePaise: string;
+      percentageChange: number;
+      direction: 'INCREASED' | 'DECREASED' | 'UNCHANGED';
+    };
+  };
+  forecast: {
+    dailyBurnRatePaise: string;
+    projectedMonthEndSpendPaise: string;
+    budgetLimitPaise: string | null;
+    projectedVariancePaise: string | null;
+    isProjectedWithinBudget: boolean | null;
+  };
+  categories: InsightsCategory[];
+  topMerchants: InsightsMerchant[];
+  weeklyBreakdown: WeeklyBreakdownItem[];
+}
+
+export interface DetectedSubscription {
+  id: string;
+  merchantName: string;
+  cadence: 'MONTHLY' | 'WEEKLY' | 'QUARTERLY';
+  amountPaise: string;
+  occurrencesCount: number;
+  lastPaymentDate: string;
+  estimatedNextDueDate: string;
+  daysUntilDue: number;
+  category: { id: string; name: string; color: string | null; icon: string | null } | null;
+}
+
+export interface RecurringSubscriptionsResponse {
+  totalMonthlyCommitmentPaise: string;
+  activeSubscriptionsCount: number;
+  subscriptions: DetectedSubscription[];
+}
+
+export interface SpendingTrendsResponse {
+  history: Array<{
+    monthKey: string;
+    label: string;
+    spentPaise: string;
+    incomePaise: string;
+    netSavingsPaise: string;
+  }>;
+}
+
+export interface BankInstitution {
+  id: string;
+  name: string;
+  code: string;
+  logo: string;
+  supportedVia: 'ACCOUNT_AGGREGATOR' | 'STATEMENT_CSV' | 'MANUAL';
+  status: 'ACTIVE_SANDBOX' | 'REQUIRES_API_KEY' | 'READY_FOR_IMPORT';
+  supportedAccountTypes: ('SAVINGS' | 'CURRENT' | 'CREDIT_CARD')[];
+}
+
+export interface BankSyncStatus {
+  isConfigured: boolean;
+  providerName: string;
+  environment: 'production' | 'sandbox' | 'offline_only';
+  supportedInstitutions: BankInstitution[];
+  message: string;
+}
+

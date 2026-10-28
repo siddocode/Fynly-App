@@ -153,10 +153,12 @@ Bottom Tab Navigation (Expo Router):
   - In-app notification events & Notification Center modal.
   - Bank statement CSV parser (handling standard formats, e.g. HDFC, ICICI, SBI, custom).
   - Deduplication pipeline & transaction reconciliation preview.
-- [ ] **Stage 6 — Insights and bank integration** (NEXT / AWAITING APPROVAL)
+- [x] **Stage 6 — Insights and bank integration** (COMPLETED)
   - Analytics controller: category breakdowns, weekly/monthly spending trends, recurring expense heuristic.
-  - Research and architect authorized bank-data provider integration (e.g. Account Aggregator framework in India or Plaid/SaltEdge where applicable).
-- [ ] **Stage 7 — Hardening**
+  - Spending velocity, daily burn rate, and month-end forecast calculation in integer paise.
+  - Researched and architected authorized bank-data provider integration (RBI Account Aggregator framework in India).
+  - Mobile Insights tab with executive MoM summary, velocity forecast, weekly trajectory bars, category distribution, top merchants, and recurring subscription detector.
+- [ ] **Stage 7 — Hardening** (NEXT / AWAITING APPROVAL)
   - Security audit: rate limiting, helmet, CORS, SQL/Prisma injection audit, cross-user isolation checks.
   - Test suite completion (unit tests + integration tests with Supertest).
   - Production build checks for both backend and mobile app.

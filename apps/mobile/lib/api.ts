@@ -1,5 +1,6 @@
 import { QueryClient } from '@tanstack/react-query';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import {
   ApiResponse,
   HealthStatus,
@@ -12,13 +13,28 @@ import {
   NotificationEvent,
   StatementPreviewSummary,
   StatementPreviewRow,
+  InsightsOverview,
+  RecurringSubscriptionsResponse,
+  SpendingTrendsResponse,
+  BankInstitution,
+  BankSyncStatus,
 } from '../types';
 
 const getBaseUrl = (): string => {
-  if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:4000/api/v1';
+  if (Platform.OS === 'web') {
+    return 'http://localhost:4000/api/v1';
   }
-  return 'http://localhost:4000/api/v1';
+  // Try all possible hostUri locations in Expo Go / dev client
+  const hostUri =
+    Constants.expoConfig?.hostUri ||
+    (Constants as any).manifest?.debuggerHost ||
+    (Constants as any).manifest2?.extra?.expoGo?.debuggerHost;
+  const host = hostUri?.split(':')[0];
+  if (host && host !== 'localhost' && host !== '127.0.0.1') {
+    return `http://${host}:4000/api/v1`;
+  }
+  // Fallback to active local network IP for physical device
+  return 'http://192.168.31.207:4000/api/v1';
 };
 
 export const API_BASE_URL = getBaseUrl();
@@ -109,6 +125,40 @@ export const api = {
     const json = await res.json();
     if (!res.ok || !json.success) {
       throw new Error(json.error?.message || 'Login failed');
+    }
+    if (json.data?.tokens?.accessToken) {
+      setAuthToken(json.data.tokens.accessToken);
+    }
+    return json.data;
+  },
+
+  sendOtp: async (payload: { email: string; purpose: 'REGISTER' | 'LOGIN' }) => {
+    const res = await fetch(`${API_BASE_URL}/auth/send-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success) {
+      throw new Error(json.error?.message || 'Failed to send verification code');
+    }
+    return json;
+  },
+
+  verifyOtp: async (payload: {
+    email: string;
+    otp: string;
+    purpose: 'REGISTER' | 'LOGIN';
+    name?: string;
+  }) => {
+    const res = await fetch(`${API_BASE_URL}/auth/verify-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success) {
+      throw new Error(json.error?.message || 'Verification failed');
     }
     if (json.data?.tokens?.accessToken) {
       setAuthToken(json.data.tokens.accessToken);
@@ -350,6 +400,71 @@ export const api = {
     const json = await res.json();
     if (!res.ok || !json.success || !json.data) {
       throw new Error(json.error?.message || 'Failed to import statement transactions');
+    }
+    return json.data;
+  },
+
+  // Analytics & Insights
+  getInsightsOverview: async (month?: string): Promise<InsightsOverview> => {
+    const url = month
+      ? `${API_BASE_URL}/analytics/overview?month=${encodeURIComponent(month)}`
+      : `${API_BASE_URL}/analytics/overview`;
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: authHeaders(),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success || !json.data) {
+      throw new Error(json.error?.message || 'Failed to fetch insights overview');
+    }
+    return json.data;
+  },
+
+  getRecurringSubscriptions: async (): Promise<RecurringSubscriptionsResponse> => {
+    const res = await fetch(`${API_BASE_URL}/analytics/recurring`, {
+      method: 'GET',
+      headers: authHeaders(),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success || !json.data) {
+      throw new Error(json.error?.message || 'Failed to fetch recurring subscriptions');
+    }
+    return json.data;
+  },
+
+  getSpendingTrends: async (): Promise<SpendingTrendsResponse> => {
+    const res = await fetch(`${API_BASE_URL}/analytics/trends`, {
+      method: 'GET',
+      headers: authHeaders(),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success || !json.data) {
+      throw new Error(json.error?.message || 'Failed to fetch spending trends');
+    }
+    return json.data;
+  },
+
+  // Bank Connectivity
+  getBankSyncProviders: async (): Promise<{ institutions: BankInstitution[] }> => {
+    const res = await fetch(`${API_BASE_URL}/bank-sync/providers`, {
+      method: 'GET',
+      headers: authHeaders(),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success || !json.data) {
+      throw new Error(json.error?.message || 'Failed to fetch bank sync providers');
+    }
+    return json.data;
+  },
+
+  getBankSyncStatus: async (): Promise<BankSyncStatus> => {
+    const res = await fetch(`${API_BASE_URL}/bank-sync/status`, {
+      method: 'GET',
+      headers: authHeaders(),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success || !json.data) {
+      throw new Error(json.error?.message || 'Failed to fetch bank sync status');
     }
     return json.data;
   },

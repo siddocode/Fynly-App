@@ -12,7 +12,7 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <SafeAreaProvider>
-          <StatusBar style="light" backgroundColor={theme.colors.background} />
+          <StatusBar style="light" />
           <Stack
             screenOptions={{
               headerShown: false,

@@ -128,12 +128,12 @@ Use the Expo Go app or an iOS/Android simulator to test the mobile application.
 
 | Stage | Focus | Status |
 |---|---|---|
-| **Stage 1** | Inspect & Plan (Architecture, Setup, Conventions, Risks) | **In Progress** |
-| **Stage 2** | Foundation (Monorepo, Express, Prisma, Expo, Health Checks) | Upcoming |
-| **Stage 3** | Authentication & Transactions (Auth, Accounts, Categories, CRUD) | Upcoming |
-| **Stage 4** | Budgets & Dashboard (Safe-to-spend, Period math, Dashboard UI) | Upcoming |
-| **Stage 5** | Alerts & Statement Import (CSV parser, Deduplication, Notifications) | Upcoming |
-| **Stage 6** | Insights & Bank Integration (Trends, Analytics, Account Aggregator) | Upcoming |
+| **Stage 1** | Inspect & Plan (Architecture, Setup, Conventions, Risks) | Completed |
+| **Stage 2** | Foundation (Monorepo, Express, Prisma, Expo, Health Checks) | Completed |
+| **Stage 3** | Authentication & Transactions (Auth, Accounts, Categories, CRUD) | Completed |
+| **Stage 4** | Budgets & Dashboard (Safe-to-spend, Period math, Dashboard UI) | Completed |
+| **Stage 5** | Alerts & Statement Import (CSV parser, Deduplication, Notifications) | Completed |
+| **Stage 6** | Insights & Bank Integration (Trends, Analytics, Account Aggregator) | Completed |
 | **Stage 7** | Hardening (Security, Tests, Performance, Deployment readiness) | Upcoming |
 
 ---

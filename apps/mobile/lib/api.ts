@@ -21,6 +21,10 @@ import {
 } from '../types';
 
 const getBaseUrl = (): string => {
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL.replace(/\/+$/, '');
+  }
+
   if (Platform?.OS === 'web') {
     return 'http://localhost:4000/api/v1';
   }

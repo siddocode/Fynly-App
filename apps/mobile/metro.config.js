@@ -16,4 +16,7 @@ config.resolver.nodeModulesPaths = [
   path.resolve(monorepoRoot, 'node_modules'),
 ];
 
+// Ensure EAS CLI recognizes standard Expo asset handling without warning
+config.transformer.assetPlugins = ['expo-asset/tools/hashAssetFiles'];
+
 module.exports = config;

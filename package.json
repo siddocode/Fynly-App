@@ -16,6 +16,7 @@
     "test:backend": "npm run test --workspace=@fynly/backend",
     "build:backend": "npm run build --workspace=@fynly/backend",
     "build:mobile": "npm run build --workspace=@fynly/mobile",
+    "build:apk": "npm run build:apk --workspace=@fynly/mobile",
     "prisma:generate": "npm run prisma:generate --workspace=@fynly/backend",
     "prisma:migrate": "npm run prisma:migrate --workspace=@fynly/backend",
     "postinstall": "node scripts/patch-expo-notifications.js"

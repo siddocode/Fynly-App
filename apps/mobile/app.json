@@ -7,15 +7,14 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "scheme": "fynly",
-    "splash": {
-      "resizeMode": "contain",
-      "backgroundColor": "#0B0E14"
-    },
     "ios": {
       "supportsTablet": true
     },
     "android": {
+      "package": "com.fynly.app",
+      "versionCode": 1,
       "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0B0E14"
       },
       "softwareKeyboardLayoutMode": "resize"

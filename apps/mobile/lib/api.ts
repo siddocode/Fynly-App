@@ -20,16 +20,25 @@ import {
   BankSyncStatus,
 } from '../types';
 
+const DEFAULT_PROD_API_URL = 'https://fynly-app.onrender.com/api/v1';
+
 const getBaseUrl = (): string => {
+  // 1. Prioritize explicit environment variable override (EAS build, .env, or EXPO_PUBLIC_API_URL)
   if (process.env.EXPO_PUBLIC_API_URL) {
     return process.env.EXPO_PUBLIC_API_URL.replace(/\/+$/, '');
   }
 
-  if (Platform?.OS === 'web') {
-    return 'http://localhost:4000/api/v1';
+  // 2. Production standalone builds (e.g. Android APK / iOS) must always point to deployed Render backend
+  if (!__DEV__) {
+    return DEFAULT_PROD_API_URL;
   }
 
-  // Detect dev machine host IP from Expo Go or dev client manifest
+  // 3. Web default
+  if (Platform?.OS === 'web') {
+    return DEFAULT_PROD_API_URL;
+  }
+
+  // 4. In development under Expo Go / dev client, detect dev machine host IP if active
   const hostUri =
     Constants.expoConfig?.hostUri ||
     (Constants as any).manifest?.debuggerHost ||
@@ -44,13 +53,8 @@ const getBaseUrl = (): string => {
     }
   }
 
-  // Android emulator fallback
-  if (Platform?.OS === 'android' && !Constants.isDevice) {
-    return 'http://10.0.2.2:4000/api/v1';
-  }
-
-  // Fallback to active local network IP for physical device
-  return 'http://192.168.31.207:4000/api/v1';
+  // 5. Default fallback to deployed production backend
+  return DEFAULT_PROD_API_URL;
 };
 
 export const API_BASE_URL = getBaseUrl();

@@ -72,7 +72,17 @@ export const getInsightsOverview = async (
         select: { type: true, amountPaise: true },
       }),
       prisma.budget.findFirst({
-        where: { userId, period: 'MONTHLY' },
+        where: {
+          userId,
+          OR: [
+            {
+              startDate: { lte: endOfMonth },
+              endDate: { gte: startOfMonth },
+            },
+            { isActive: true },
+          ],
+        },
+        orderBy: { isActive: 'desc' },
       }),
     ]);
 
@@ -88,18 +98,18 @@ export const getInsightsOverview = async (
         currentMonthSpentPaise += amt;
 
         // Category breakdown
-        const catKey = tx.categoryId || 'uncategorized';
+        const catKey = tx.categoryId || 'other';
         const existingCat = categoryMap.get(catKey);
         if (existingCat) {
           existingCat.spentPaise += amt;
           existingCat.count += 1;
         } else {
           categoryMap.set(catKey, {
-            id: tx.category?.id || 'uncategorized',
-            name: tx.category?.name || 'Uncategorized',
+            id: tx.category?.id || 'other',
+            name: tx.category?.name || 'Other',
             slug: tx.category?.slug || 'other',
-            color: tx.category?.color || '#94A3B8',
-            icon: tx.category?.icon || 'help-circle',
+            color: tx.category?.color || '#64748B',
+            icon: tx.category?.icon || 'MoreHorizontal',
             spentPaise: amt,
             count: 1,
           });

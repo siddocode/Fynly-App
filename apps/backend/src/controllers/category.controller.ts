@@ -8,6 +8,11 @@ export const createCategorySchema = z.object({
   name: z.string().min(1, 'Category name is required'),
   color: z.string().default('#6366F1'),
   icon: z.string().default('Tag'),
+  limitPaise: z
+    .union([z.number(), z.string()])
+    .optional()
+    .nullable()
+    .transform((val) => (val !== undefined && val !== null && String(val).trim() !== '' && BigInt(val) > 0n ? BigInt(val) : null)),
 });
 
 export const getCategories = async (
@@ -41,7 +46,7 @@ export const createCategory = async (
 ): Promise<void> => {
   try {
     const userId = req.user!.userId;
-    const { name, color, icon } = createCategorySchema.parse(req.body);
+    const { name, color, icon, limitPaise } = createCategorySchema.parse(req.body);
 
     const slug = name
       .toLowerCase()
@@ -56,20 +61,60 @@ export const createCategory = async (
       throw new AppError('A category with this name already exists', 409);
     }
 
-    const category = await prisma.category.create({
-      data: {
-        userId,
-        name: name.trim(),
-        slug,
-        color,
-        icon,
-        isDefault: false,
-      },
+    // If money/limit is provided, check against active budget ceiling if one exists
+    let activeBudget = null;
+    if (limitPaise) {
+      activeBudget = await prisma.budget.findFirst({
+        where: { userId, isActive: true },
+        include: { categories: true },
+      });
+
+      if (activeBudget) {
+        const currentAllocated = activeBudget.categories.reduce(
+          (sum, c) => sum + BigInt(c.limitPaise),
+          0n
+        );
+        const availableBuffer = activeBudget.limitPaise > currentAllocated
+          ? activeBudget.limitPaise - currentAllocated
+          : 0n;
+
+        if (limitPaise > availableBuffer) {
+          throw new AppError(
+            `Cannot allocate money: overall budget limit reached or exceeded (available: ₹${Number(availableBuffer) / 100})`,
+            400
+          );
+        }
+      }
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const category = await tx.category.create({
+        data: {
+          userId,
+          name: name.trim(),
+          slug,
+          color,
+          icon,
+          isDefault: false,
+        },
+      });
+
+      if (limitPaise && activeBudget) {
+        await tx.budgetCategory.create({
+          data: {
+            budgetId: activeBudget.id,
+            categoryId: category.id,
+            limitPaise,
+          },
+        });
+      }
+
+      return category;
     });
 
     res.status(201).json({
       success: true,
-      data: category,
+      data: result,
     });
   } catch (error) {
     next(error);
@@ -86,11 +131,14 @@ export const deleteCategory = async (
     const id = req.params.id as string;
 
     const category = await prisma.category.findFirst({
-      where: { id, userId },
+      where: {
+        id,
+        OR: [{ userId }, { userId: null }],
+      },
     });
 
     if (!category) {
-      throw new AppError('Category not found or cannot be deleted', 404);
+      throw new AppError('Category not found', 404);
     }
 
     await prisma.category.delete({
@@ -99,7 +147,7 @@ export const deleteCategory = async (
 
     res.status(200).json({
       success: true,
-      data: { message: 'Category deleted' },
+      data: { message: 'Category deleted successfully' },
     });
   } catch (error) {
     next(error);

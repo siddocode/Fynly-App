@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { theme } from '../lib/theme';
+import { useTheme } from '../lib/theme';
 
 interface BadgeProps {
   label: string;
@@ -8,6 +8,8 @@ interface BadgeProps {
 }
 
 export const Badge: React.FC<BadgeProps> = ({ label, variant = 'primary' }) => {
+  const { theme } = useTheme();
+
   const getColors = () => {
     switch (variant) {
       case 'success':
@@ -26,23 +28,32 @@ export const Badge: React.FC<BadgeProps> = ({ label, variant = 'primary' }) => {
   const colors = getColors();
 
   return (
-    <View style={[styles.badge, { backgroundColor: colors.bg }]}>
-      <Text style={[styles.label, { color: colors.text }]}>{label}</Text>
+    <View
+      style={[
+        {
+          paddingHorizontal: 9,
+          paddingVertical: 3.5,
+          borderRadius: theme.borderRadius.full,
+          alignSelf: 'flex-start',
+          backgroundColor: colors.bg,
+          borderWidth: 1,
+          borderColor: `${colors.text}35`,
+          flexShrink: 0,
+        },
+      ]}
+    >
+      <Text
+        numberOfLines={1}
+        style={{
+          fontSize: 10.5,
+          fontWeight: '700',
+          textTransform: 'uppercase',
+          letterSpacing: 0.6,
+          color: colors.text,
+        }}
+      >
+        {label}
+      </Text>
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  badge: {
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: 3,
-    borderRadius: theme.borderRadius.full,
-    alignSelf: 'flex-start',
-  },
-  label: {
-    fontSize: theme.typography.sizes.xs,
-    fontWeight: theme.typography.weights.semibold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-});

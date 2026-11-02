@@ -1,37 +1,43 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useSafeRouter } from '../../hooks/useSafeRouter';
+import { useFocusEffect } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  PlusCircle,
-  ArrowDownLeft,
-  FileSpreadsheet,
-  LogIn,
   TrendingDown,
   TrendingUp,
-  ShieldCheck,
-  ShieldAlert,
   Tag,
   Target,
-  ArrowRight,
   Bell,
+  Wallet,
+  Calendar,
+  ChevronRight,
+  AlertCircle,
+  CheckCircle2,
+  FileSpreadsheet,
+  LogIn,
+  Sparkles,
+  ShieldCheck,
+  Plus,
+  Minus,
 } from 'lucide-react-native';
 import { api, formatPaiseToRupees } from '../../lib/api';
 import { useAuth } from '../../hooks/useAuth';
-import { theme } from '../../lib/theme';
+import { useTheme, Theme } from '../../lib/theme';
 import { Card } from '../../components/Card';
-import { Badge } from '../../components/Badge';
 import { Button } from '../../components/Button';
 import { Header } from '../../components/Header';
 import { BudgetStatusLevel } from '../../types';
 
 export default function HomeScreen() {
-  const router = useRouter();
+  const router = useSafeRouter();
   const queryClient = useQueryClient();
   const { user, isAuthenticated } = useAuth();
+  const { theme, isDark } = useTheme();
+  const styles = React.useMemo(() => getStyles(theme, isDark), [theme, isDark]);
 
-  // Fetch consolidated dashboard summary
+  // Fetch consolidated dashboard summary ONLY when logged in
   const {
     data: summary,
     isLoading: summaryLoading,
@@ -43,15 +49,25 @@ export default function HomeScreen() {
     enabled: isAuthenticated,
   });
 
-  // Fetch notifications for unread badge
+  // Automatically refresh dashboard when Home tab is focused so activating budgets instantly reflects
+  useFocusEffect(
+    React.useCallback(() => {
+      if (isAuthenticated) {
+        refetchSummary();
+      }
+    }, [isAuthenticated, refetchSummary])
+  );
+
+  // Fetch notifications for unread badge ONLY when logged in
   const { data: notificationsData } = useQuery({
     queryKey: ['notifications'],
     queryFn: api.getNotifications,
     enabled: isAuthenticated,
   });
-  const unreadCount = notificationsData?.unreadCount || 0;
+  const unreadCount = isAuthenticated ? (notificationsData?.unreadCount || 0) : 0;
 
   const onRefresh = async () => {
+    if (!isAuthenticated) return;
     await Promise.all([
       refetchSummary(),
       queryClient.invalidateQueries({ queryKey: ['budgets'] }),
@@ -64,9 +80,8 @@ export default function HomeScreen() {
   const getStatusColor = (status?: BudgetStatusLevel): string => {
     switch (status) {
       case 'EXCEEDED':
-        return theme.colors.alertRed;
       case 'WARNING_90':
-        return theme.colors.alertOrange;
+        return theme.colors.expense;
       case 'WARNING_70':
         return theme.colors.alertAmber;
       default:
@@ -74,28 +89,39 @@ export default function HomeScreen() {
     }
   };
 
-  const totalBalancePaise = summary?.totalBalancePaise || '0';
-  const todaySpentPaise = summary?.todaySpentPaise || '0';
-  const monthSpentPaise = summary?.monthSpentPaise || '0';
-  const safeToSpendTodayPaise = summary?.safeToSpendTodayPaise || '0';
-  const budget = summary?.budget;
-  const recentTransactions = summary?.recentTransactions || [];
+  // Only read user financial data when authenticated
+  const totalBalancePaise = isAuthenticated ? (summary?.totalBalancePaise || '0') : '0';
+  const todaySpentPaise = isAuthenticated ? (summary?.todaySpentPaise || '0') : '0';
+  const budget = isAuthenticated ? summary?.budget : null;
+  const dailyOverview = isAuthenticated ? summary?.dailyOverview : null;
+  const recentTransactions = isAuthenticated ? (summary?.recentTransactions || []) : [];
+
+  const currentMonthName = new Date().toLocaleString('en-IN', { month: 'long' });
+
+  // Safe percentage helper
+  const budgetUsagePercent = budget?.usagePercentage ?? 0;
+  const budgetBarWidth = Math.min(100, Math.max(0, budgetUsagePercent));
+
+  const dailyUsagePercent = dailyOverview?.usagePercentage ?? 0;
+  const dailyBarWidth = Math.min(100, Math.max(0, dailyUsagePercent));
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={
-          <RefreshControl
-            refreshing={isRefetching}
-            onRefresh={onRefresh}
-            tintColor={theme.colors.primary}
-          />
+          isAuthenticated ? (
+            <RefreshControl
+              refreshing={isRefetching}
+              onRefresh={onRefresh}
+              tintColor={theme.colors.primary}
+            />
+          ) : undefined
         }
       >
         <Header
-          title={isAuthenticated ? `Hi, ${user?.name.split(' ')[0]}` : 'Fynly'}
-          subtitle={isAuthenticated ? 'Your finances at a glance' : 'Financial Clarity'}
+          title={isAuthenticated ? `Hi, ${user?.name ? user.name.split(' ')[0] : 'there'}` : 'Fynly'}
+          subtitle={isAuthenticated ? `${currentMonthName} Overview` : 'Smart Financial Clarity'}
           rightElement={
             !isAuthenticated ? (
               <Button
@@ -123,519 +149,991 @@ export default function HomeScreen() {
           }
         />
 
-        {/* Guest Banner if not logged in */}
+        {/* ================= GUEST EXPERIENCE (WHEN LOGGED OUT) ================= */}
         {!isAuthenticated && (
-          <Card style={styles.guestCard} variant="subtle">
-            <Text style={styles.guestTitle}>Welcome to Fynly</Text>
-            <Text style={styles.guestSubtext}>
-              Sign in or create a free account to track accounts, record transactions, and analyze budgets.
-            </Text>
-            <Button
-              title="Get Started"
-              onPress={() => router.push('/auth')}
-              style={{ marginTop: theme.spacing.md }}
-            />
-          </Card>
-        )}
-
-        {/* Total Net Balance Card */}
-        <Card style={styles.balanceCard}>
-          <Text style={styles.balanceLabel}>Total Net Balance</Text>
-          <Text style={styles.balanceAmount}>
-            {formatPaiseToRupees(totalBalancePaise)}
-          </Text>
-
-          <View style={styles.divider} />
-
-          <View style={styles.safeSpendRow}>
-            <View>
-              <Text style={styles.safeSpendLabel}>Safe to Spend Today</Text>
-              <Text style={styles.safeSpendValue}>
-                {formatPaiseToRupees(safeToSpendTodayPaise)}
+          <View style={styles.guestContainer}>
+            <Card style={styles.guestHeroCard}>
+              <View style={styles.guestIconBadge}>
+                <Sparkles size={22} color={theme.colors.primary} />
+              </View>
+              <Text style={styles.guestHeroTitle}>Master Your Money</Text>
+              <Text style={styles.guestHeroSubtitle}>
+                Set clean monthly budgets, track daily allowances in real-time, and log expenses with one tap.
               </Text>
-            </View>
-            <View
-              style={[
-                styles.budgetStatusPill,
-                { backgroundColor: `${getStatusColor(budget?.status)}20` },
-              ]}
-            >
-              {budget?.status === 'EXCEEDED' || budget?.status === 'WARNING_90' || budget?.status === 'WARNING_70' ? (
-                <ShieldAlert size={14} color={getStatusColor(budget?.status)} />
-              ) : (
-                <ShieldCheck size={14} color={theme.colors.primary} />
-              )}
-              <Text
-                style={[
-                  styles.budgetStatusText,
-                  { color: getStatusColor(budget?.status) },
-                ]}
-              >
-                {budget ? (budget.status === 'ON_TRACK' ? 'On Track' : budget.status) : 'Estimated'}
-              </Text>
+              <View style={styles.guestBtnGroup}>
+                <Button
+                  title="Sign In / Register"
+                  onPress={() => router.push('/auth')}
+                  style={styles.guestPrimaryBtn}
+                />
+              </View>
+            </Card>
+
+            <View style={styles.guestFeaturesRow}>
+              <View style={styles.guestFeatureCard}>
+                <Target size={18} color={theme.colors.accent} />
+                <Text style={styles.guestFeatureTitle}>Smart Budgets</Text>
+                <Text style={styles.guestFeatureDesc}>Set targets by category & stay on track</Text>
+              </View>
+              <View style={styles.guestFeatureCard}>
+                <Calendar size={18} color={theme.colors.primary} />
+                <Text style={styles.guestFeatureTitle}>Daily Pace</Text>
+                <Text style={styles.guestFeatureDesc}>Know exactly what you can safely spend today</Text>
+              </View>
             </View>
           </View>
-        </Card>
+        )}
 
-        {/* Monthly Budget Summary Widget */}
+        {/* ================= AUTHENTICATED FINANCIAL DASHBOARD ================= */}
         {isAuthenticated && (
-          <View style={styles.sectionWrap}>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>Spending & Budget</Text>
-              <TouchableOpacity onPress={() => router.push('/budgets')}>
-                <Text style={styles.linkText}>View Budgets</Text>
+          <>
+            {/* 1. HERO TOTAL BUDGET CARD */}
+            {budget ? (
+              <TouchableOpacity
+                activeOpacity={0.88}
+                onPress={() => router.push('/budgets')}
+                style={styles.heroCardTouchable}
+              >
+                <Card style={styles.heroCard}>
+                  <View style={styles.heroHeaderRow}>
+                    <View style={styles.heroBadge}>
+                      <Target size={12} color={theme.colors.primary} />
+                      <Text style={styles.heroBadgeText} numberOfLines={1}>
+                        {budget.name || 'Monthly Budget'}
+                      </Text>
+                    </View>
+                    <View style={styles.heroDaysPill}>
+                      <Text style={styles.heroDaysPillText}>
+                        {budget.remainingDays}d left
+                      </Text>
+                      <ChevronRight size={12} color={theme.colors.textMuted} />
+                    </View>
+                  </View>
+
+                  <Text style={styles.heroLabel}>Total Monthly Budget</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+                    <Text style={styles.heroAmount}>
+                      {formatPaiseToRupees(budget.limitPaise)}
+                    </Text>
+                    {budget.incomePaise && BigInt(budget.incomePaise) > 0n ? (
+                      <View style={styles.incomeBoostPill}>
+                        <TrendingUp size={11} color={theme.colors.income} />
+                        <Text style={styles.incomeBoostText}>
+                          +{formatPaiseToRupees(budget.incomePaise)} income added
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+
+                  {/* Progress Line Bar */}
+                  <View style={styles.progressContainer}>
+                    <View style={styles.progressBarBg}>
+                      <View
+                        style={[
+                          styles.progressBarFill,
+                          {
+                            width: `${budgetBarWidth}%`,
+                            backgroundColor: getStatusColor(budget.status),
+                          },
+                        ]}
+                      />
+                    </View>
+                    <View style={styles.progressMetaRow}>
+                      <Text style={styles.progressSpentText}>
+                        {formatPaiseToRupees(budget.spentPaise)} spent ({budgetUsagePercent}%)
+                      </Text>
+                      <Text style={styles.progressRemainingText}>
+                        {formatPaiseToRupees(budget.remainingPaise)} left
+                      </Text>
+                    </View>
+                  </View>
+                </Card>
               </TouchableOpacity>
-            </View>
+            ) : (
+              <View style={styles.heroCardTouchable}>
+                <Card style={styles.heroCard}>
+                  <View style={styles.heroHeaderRow}>
+                    <View style={styles.heroBadge}>
+                      <Target size={12} color={theme.colors.primary} />
+                      <Text style={styles.heroBadgeText}>No Active Budget</Text>
+                    </View>
+                  </View>
 
-            <Card style={styles.budgetWidget} variant="subtle">
-              <View style={styles.statGrid}>
-                <View style={styles.statBox}>
-                  <Text style={styles.statLabel}>Spent Today</Text>
-                  <Text style={styles.statAmount}>{formatPaiseToRupees(todaySpentPaise)}</Text>
-                </View>
-                <View style={styles.statDivider} />
-                <View style={styles.statBox}>
-                  <Text style={styles.statLabel}>This Month</Text>
-                  <Text style={styles.statAmount}>{formatPaiseToRupees(monthSpentPaise)}</Text>
-                </View>
+                  <Text style={styles.heroLabel}>Budget Management</Text>
+                  <Text style={styles.noBudgetHeading}>Set a Monthly Budget</Text>
+                  <Text style={styles.heroSubnote}>
+                    Create a budget to unlock your daily safe-to-spend allowance, live spending pace, and income boosts.
+                  </Text>
+
+                  <TouchableOpacity
+                    style={styles.setBudgetPrompt}
+                    onPress={() => router.push({ pathname: '/create-budget', params: { reset: 'true' } })}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.setBudgetPromptLeft}>
+                      <Sparkles size={16} color={theme.colors.primary} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.setBudgetPromptTitle}>Create Budget Plan</Text>
+                        <Text style={styles.setBudgetPromptSubtitle}>
+                          Choose a month &amp; spending limit
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.setBudgetBtn}>
+                      <Text style={styles.setBudgetBtnText}>+ Set</Text>
+                    </View>
+                  </TouchableOpacity>
+                </Card>
               </View>
+            )}
 
-              {budget ? (
-                <View style={styles.budgetProgressSection}>
-                  <View style={styles.budgetBarHeader}>
-                    <Text style={styles.budgetBarLabel}>Monthly Limit</Text>
-                    <Text style={styles.budgetBarValues}>
-                      {formatPaiseToRupees(budget.spentPaise)} / {formatPaiseToRupees(budget.limitPaise)}
+            {/* 2. UNIFIED TODAY'S SPENDING HUB & ACTIONS */}
+            <View style={styles.dailySectionWrap}>
+              <Card
+                style={[
+                  styles.dailyHubCard,
+                  dailyOverview?.isExceeded && styles.dailyCardExceeded,
+                ]}
+              >
+                {/* Hub Header */}
+                <View style={styles.dailyHeaderRow}>
+                  <View style={styles.dailyTitleWrap}>
+                    <Calendar
+                      size={14}
+                      color={dailyOverview?.isExceeded ? theme.colors.expense : theme.colors.primary}
+                    />
+                    <Text style={styles.dailySectionLabel}>
+                      {dailyOverview && BigInt(dailyOverview.limitPaise || '0') > 0n
+                        ? "Today's Spending Pace"
+                        : "Today's Spending"}
                     </Text>
                   </View>
-                  <View style={styles.progressBg}>
+
+                  {dailyOverview && BigInt(dailyOverview.limitPaise || '0') > 0n ? (
+                    dailyOverview.isExceeded ? (
+                      <View style={styles.dailyStatusPillDanger}>
+                        <AlertCircle size={10} color={theme.colors.expense} />
+                        <Text style={styles.dailyStatusTextDanger}>
+                          +{formatPaiseToRupees(dailyOverview.exceededByPaise)} over pace
+                        </Text>
+                      </View>
+                    ) : (
+                      <View style={styles.dailyStatusPillSafe}>
+                        <CheckCircle2 size={10} color={theme.colors.primary} />
+                        <Text style={styles.dailyStatusTextSafe}>
+                          {formatPaiseToRupees(dailyOverview.remainingPaise)} left today
+                        </Text>
+                      </View>
+                    )
+                  ) : null}
+                </View>
+
+                {/* Main Spending Row */}
+                <View style={styles.dailyMainRow}>
+                  <View>
+                    <Text style={styles.dailySpentAmount}>
+                      {formatPaiseToRupees(todaySpentPaise)}
+                    </Text>
+                    <Text style={styles.dailySpentSubtext}>spent today</Text>
+                  </View>
+                  {dailyOverview && BigInt(dailyOverview.limitPaise || '0') > 0n && (
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={styles.dailyTargetPill}>
+                        Target {formatPaiseToRupees(dailyOverview.limitPaise)} / day
+                      </Text>
+                      <Text style={styles.dailyTargetSubtext}>
+                        from {budget ? budget.name : 'active plan'}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Daily Progress Line Bar */}
+                {dailyOverview && BigInt(dailyOverview.limitPaise || '0') > 0n && (
+                  <View style={styles.dailyProgressBarBg}>
                     <View
                       style={[
-                        styles.progressFill,
+                        styles.dailyProgressBarFill,
                         {
-                          width: `${Math.min(100, budget.usagePercentage)}%`,
-                          backgroundColor: getStatusColor(budget.status),
+                          width: `${dailyBarWidth}%`,
+                          backgroundColor: dailyOverview.isExceeded
+                            ? theme.colors.expense
+                            : dailyUsagePercent > 85
+                            ? theme.colors.alertAmber
+                            : theme.colors.primary,
                         },
                       ]}
                     />
                   </View>
-                  <Text style={styles.budgetDaysRemaining}>
-                    {budget.remainingDays} days remaining in this cycle
-                  </Text>
+                )}
+
+                {/* Connector Strip / Action Context Divider */}
+                <View style={styles.actionConnectorStrip}>
+                  <View style={styles.connectorLine} />
+                  <Text style={styles.connectorText}>Quick Log for Today</Text>
+                  <View style={styles.connectorLine} />
                 </View>
-              ) : (
-                <TouchableOpacity
-                  style={styles.setBudgetPrompt}
-                  onPress={() => router.push('/create-budget')}
-                >
-                  <View style={styles.promptLeft}>
-                    <Target size={16} color={theme.colors.primary} />
-                    <Text style={styles.promptText}>Set a monthly budget to track spending</Text>
-                  </View>
-                  <ArrowRight size={14} color={theme.colors.primary} />
-                </TouchableOpacity>
-              )}
-            </Card>
-          </View>
-        )}
 
-        {/* Quick Action Shortcuts */}
-        <View style={styles.actionsContainer}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={styles.actionGrid}>
-            <Button
-              title="Add Expense"
-              onPress={() => {
-                if (!isAuthenticated) router.push('/auth');
-                else router.push('/add-transaction?type=EXPENSE');
-              }}
-              variant="secondary"
-              icon={<ArrowDownLeft size={16} color={theme.colors.expense} />}
-              style={styles.actionBtn}
-            />
-            <Button
-              title="Add Income"
-              onPress={() => {
-                if (!isAuthenticated) router.push('/auth');
-                else router.push('/add-transaction?type=INCOME');
-              }}
-              variant="secondary"
-              icon={<PlusCircle size={16} color={theme.colors.income} />}
-              style={styles.actionBtn}
-            />
-          </View>
-          <Button
-            title="Import Bank Statement (CSV)"
-            onPress={() => {
-              if (!isAuthenticated) router.push('/auth');
-              else router.push('/import-statement');
-            }}
-            variant="outline"
-            icon={<FileSpreadsheet size={16} color={theme.colors.primary} />}
-            style={styles.importBtn}
-          />
-        </View>
-
-        {/* Recent Transactions Section */}
-        <View style={styles.transactionsSection}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Recent Transactions</Text>
-            {isAuthenticated && recentTransactions.length > 0 && (
-              <TouchableOpacity onPress={() => router.push('/activity')}>
-                <Text style={styles.viewAllText}>View All</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {recentTransactions.length === 0 ? (
-            <Card style={styles.emptyCard} variant="subtle">
-              <Text style={styles.emptyText}>No transactions recorded yet.</Text>
-              <Text style={styles.emptySubtext}>
-                Tap &ldquo;Add Expense&rdquo; or &ldquo;Add Income&rdquo; above to record your first transaction.
-              </Text>
-            </Card>
-          ) : (
-            <View style={styles.txList}>
-              {recentTransactions.map((tx) => {
-                const isExpense = tx.type === 'EXPENSE';
-                const formattedDate = new Date(tx.date).toLocaleDateString('en-IN', {
-                  month: 'short',
-                  day: 'numeric',
-                });
-
-                return (
-                  <Card key={tx.id} style={styles.txCard} variant="subtle">
-                    <View style={styles.txIconWrapper}>
-                      {isExpense ? (
-                        <TrendingDown size={18} color={theme.colors.expense} />
-                      ) : (
-                        <TrendingUp size={18} color={theme.colors.income} />
-                      )}
-                    </View>
-
-                    <View style={styles.txDetails}>
-                      <Text style={styles.txDescription} numberOfLines={1}>
-                        {tx.merchantName || tx.description}
-                      </Text>
-                      <View style={styles.txSubRow}>
-                        <Text style={styles.txDate}>{formattedDate}</Text>
-                        {tx.category ? (
-                          <View style={styles.categoryBadge}>
-                            <Tag size={10} color={tx.category.color || theme.colors.textMuted} />
-                            <Text style={styles.categoryBadgeText}>{tx.category.name}</Text>
-                          </View>
-                        ) : null}
+                {/* Integrated Action Buttons: Add Expense & Add Income */}
+                <View style={styles.integratedActionsRow}>
+                  {/* Add Expense Button */}
+                  <TouchableOpacity
+                    style={[styles.integratedActionBtn, styles.expenseBtnBorder]}
+                    onPress={() => router.push('/add-transaction?type=EXPENSE')}
+                    activeOpacity={0.82}
+                  >
+                    <View style={styles.integratedActionHeader}>
+                      <View style={[styles.actionIconPill, { backgroundColor: 'rgba(251, 113, 133, 0.15)' }]}>
+                        <TrendingDown size={16} color={theme.colors.expense} />
+                      </View>
+                      <View style={styles.actionBadgeExpense}>
+                        <Minus size={9} color={theme.colors.expense} />
+                        <Text style={styles.actionBadgeTextExpense}>Expense</Text>
                       </View>
                     </View>
-
-                    <Text
-                      style={[
-                        styles.txAmount,
-                        { color: isExpense ? theme.colors.expense : theme.colors.income },
-                      ]}
-                    >
-                      {isExpense ? '-' : '+'}
-                      {formatPaiseToRupees(tx.amountPaise)}
+                    <Text style={styles.integratedActionTitle}>Add Expense</Text>
+                    <Text style={styles.integratedActionSubtitle} numberOfLines={1}>
+                      Deducts from today&apos;s pace
                     </Text>
-                  </Card>
-                );
-              })}
+                  </TouchableOpacity>
+
+                  {/* Add Income Button */}
+                  <TouchableOpacity
+                    style={[styles.integratedActionBtn, styles.incomeBtnBorder]}
+                    onPress={() => router.push('/add-transaction?type=INCOME')}
+                    activeOpacity={0.82}
+                  >
+                    <View style={styles.integratedActionHeader}>
+                      <View style={[styles.actionIconPill, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
+                        <TrendingUp size={16} color={theme.colors.income} />
+                      </View>
+                      <View style={styles.actionBadgeIncome}>
+                        <Plus size={9} color={theme.colors.income} />
+                        <Text style={styles.actionBadgeTextIncome}>Income</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.integratedActionTitle}>Add Income</Text>
+                    <Text style={styles.integratedActionSubtitle} numberOfLines={1}>
+                      Boosts month &amp; daily pace
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </Card>
+
+              {/* Secondary Shortcuts: Budgets & CSV Import */}
+              <View style={styles.secondaryShortcutsRow}>
+                <TouchableOpacity
+                  style={styles.secondaryShortcutPill}
+                  onPress={() => router.push('/budgets')}
+                  activeOpacity={0.7}
+                >
+                  <Target size={14} color={theme.colors.accent} />
+                  <Text style={styles.secondaryShortcutText}>Manage Budgets</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.secondaryShortcutPill}
+                  onPress={() => router.push('/import-statement')}
+                  activeOpacity={0.7}
+                >
+                  <FileSpreadsheet size={14} color={theme.colors.info} />
+                  <Text style={styles.secondaryShortcutText}>Import Statement CSV</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          )}
-        </View>
+
+            {/* 4. RECENT TRANSACTIONS */}
+            <View style={styles.transactionsWrap}>
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionHeading}>Recent Transactions</Text>
+                {recentTransactions.length > 0 && (
+                  <TouchableOpacity onPress={() => router.push('/activity')}>
+                    <Text style={styles.viewAllLink}>View All</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {recentTransactions.length === 0 ? (
+                <Card style={styles.emptyCard} variant="subtle">
+                  <Text style={styles.emptyText}>No transactions recorded yet</Text>
+                  <Text style={styles.emptySubtext}>
+                    Tap &ldquo;Add Expense&rdquo; or &ldquo;Add Income&rdquo; above to log your first transaction.
+                  </Text>
+                </Card>
+              ) : (
+                <View style={styles.txList}>
+                  {recentTransactions.map((tx) => {
+                    const isExpense = tx.type === 'EXPENSE';
+                    const formattedDate = new Date(tx.date).toLocaleDateString('en-IN', {
+                      month: 'short',
+                      day: 'numeric',
+                    });
+
+                    return (
+                      <View key={tx.id} style={styles.txCard}>
+                        <View
+                          style={[
+                            styles.txIconBox,
+                            {
+                              backgroundColor: isExpense
+                                ? 'rgba(251, 113, 133, 0.10)'
+                                : 'rgba(16, 185, 129, 0.10)',
+                            },
+                          ]}
+                        >
+                          {isExpense ? (
+                            <TrendingDown size={16} color={theme.colors.expense} />
+                          ) : (
+                            <TrendingUp size={16} color={theme.colors.income} />
+                          )}
+                        </View>
+
+                        <View style={styles.txInfo}>
+                          <Text style={styles.txTitle} numberOfLines={1}>
+                            {tx.merchantName || tx.description}
+                          </Text>
+                          <View style={styles.txMetaRow}>
+                            <Text style={styles.txDate}>{formattedDate}</Text>
+                            {tx.category ? (
+                              <View style={styles.categoryBadge}>
+                                <Tag size={9} color={tx.category.color || theme.colors.textMuted} />
+                                <Text style={styles.categoryBadgeText}>{tx.category.name}</Text>
+                              </View>
+                            ) : null}
+                          </View>
+                        </View>
+
+                        <Text
+                          style={[
+                            styles.txAmountText,
+                            { color: isExpense ? theme.colors.expense : theme.colors.income },
+                          ]}
+                        >
+                          {isExpense ? '-' : '+'}
+                          {formatPaiseToRupees(tx.amountPaise)}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  bellBtn: {
-    position: 'relative',
-    padding: 8,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: theme.colors.surfaceSubtle,
-    borderWidth: 1,
-    borderColor: theme.colors.surfaceBorder,
-  },
-  bellBadge: {
-    position: 'absolute',
-    top: -2,
-    right: -2,
-    backgroundColor: theme.colors.alertRed,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 3,
-  },
-  bellBadgeText: {
-    color: '#ffffff',
-    fontSize: 9,
-    fontWeight: theme.typography.weights.bold,
-  },
-  scrollContent: {
-    paddingBottom: theme.spacing['4xl'],
-  },
-  guestCard: {
-    marginHorizontal: theme.spacing.lg,
-    marginBottom: theme.spacing.lg,
-    padding: theme.spacing.lg,
-  },
-  guestTitle: {
-    fontSize: theme.typography.sizes.base,
-    fontWeight: theme.typography.weights.bold,
-    color: theme.colors.textPrimary,
-  },
-  guestSubtext: {
-    fontSize: theme.typography.sizes.xs,
-    color: theme.colors.textSecondary,
-    marginTop: 4,
-  },
-  balanceCard: {
-    marginHorizontal: theme.spacing.lg,
-    padding: theme.spacing.xl,
-    backgroundColor: theme.colors.surface,
-  },
-  balanceLabel: {
-    fontSize: theme.typography.sizes.sm,
-    color: theme.colors.textSecondary,
-    fontWeight: theme.typography.weights.medium,
-  },
-  balanceAmount: {
-    fontSize: theme.typography.sizes['3xl'],
-    fontWeight: theme.typography.weights.extrabold,
-    color: theme.colors.textPrimary,
-    marginTop: theme.spacing.xs,
-    letterSpacing: -0.5,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: theme.colors.surfaceBorder,
-    marginVertical: theme.spacing.md,
-  },
-  safeSpendRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  safeSpendLabel: {
-    fontSize: theme.typography.sizes.xs,
-    color: theme.colors.textSecondary,
-  },
-  safeSpendValue: {
-    fontSize: theme.typography.sizes.lg,
-    fontWeight: theme.typography.weights.bold,
-    color: theme.colors.primary,
-    marginTop: 2,
-  },
-  budgetStatusPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: 4,
-    borderRadius: theme.borderRadius.full,
-  },
-  budgetStatusText: {
-    fontSize: theme.typography.sizes.xs,
-    fontWeight: theme.typography.weights.semibold,
-  },
-  sectionWrap: {
-    marginTop: theme.spacing.xl,
-    paddingHorizontal: theme.spacing.lg,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: theme.spacing.sm,
-  },
-  sectionTitle: {
-    fontSize: theme.typography.sizes.base,
-    fontWeight: theme.typography.weights.bold,
-    color: theme.colors.textPrimary,
-  },
-  linkText: {
-    fontSize: theme.typography.sizes.xs,
-    color: theme.colors.primary,
-    fontWeight: theme.typography.weights.semibold,
-  },
-  budgetWidget: {
-    padding: theme.spacing.lg,
-  },
-  statGrid: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  statBox: {
-    flex: 1,
-  },
-  statDivider: {
-    width: 1,
-    height: 36,
-    backgroundColor: theme.colors.surfaceBorder,
-    marginHorizontal: theme.spacing.md,
-  },
-  statLabel: {
-    fontSize: theme.typography.sizes.xs,
-    color: theme.colors.textMuted,
-  },
-  statAmount: {
-    fontSize: theme.typography.sizes.lg,
-    fontWeight: theme.typography.weights.bold,
-    color: theme.colors.textPrimary,
-    marginTop: 2,
-  },
-  budgetProgressSection: {
-    marginTop: theme.spacing.md,
-    paddingTop: theme.spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.surfaceBorder,
-  },
-  budgetBarHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  budgetBarLabel: {
-    fontSize: theme.typography.sizes.xs,
-    color: theme.colors.textSecondary,
-  },
-  budgetBarValues: {
-    fontSize: theme.typography.sizes.xs,
-    fontWeight: theme.typography.weights.bold,
-    color: theme.colors.textPrimary,
-  },
-  progressBg: {
-    height: 6,
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.full,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: theme.borderRadius.full,
-  },
-  budgetDaysRemaining: {
-    fontSize: 10,
-    color: theme.colors.textMuted,
-    marginTop: 4,
-    textAlign: 'right',
-  },
-  setBudgetPrompt: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: theme.spacing.md,
-    paddingTop: theme.spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.surfaceBorder,
-  },
-  promptLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  promptText: {
-    fontSize: theme.typography.sizes.xs,
-    color: theme.colors.primary,
-    fontWeight: theme.typography.weights.medium,
-  },
-  actionsContainer: {
-    marginTop: theme.spacing.xl,
-    paddingHorizontal: theme.spacing.lg,
-  },
-  actionGrid: {
-    flexDirection: 'row',
-    gap: theme.spacing.md,
-    marginTop: theme.spacing.sm,
-  },
-  actionBtn: {
-    flex: 1,
-  },
-  importBtn: {
-    marginTop: theme.spacing.md,
-  },
-  transactionsSection: {
-    marginTop: theme.spacing.xl,
-    paddingHorizontal: theme.spacing.lg,
-  },
-  viewAllText: {
-    fontSize: theme.typography.sizes.sm,
-    color: theme.colors.primary,
-    fontWeight: theme.typography.weights.semibold,
-  },
-  emptyCard: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: theme.spacing['2xl'],
-    marginTop: theme.spacing.sm,
-  },
-  emptyText: {
-    fontSize: theme.typography.sizes.base,
-    fontWeight: theme.typography.weights.medium,
-    color: theme.colors.textSecondary,
-  },
-  emptySubtext: {
-    fontSize: theme.typography.sizes.xs,
-    color: theme.colors.textMuted,
-    marginTop: 4,
-    textAlign: 'center',
-  },
-  txList: {
-    marginTop: theme.spacing.sm,
-    gap: theme.spacing.sm,
-  },
-  txCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: theme.spacing.md,
-    paddingHorizontal: theme.spacing.md,
-  },
-  txIconWrapper: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: theme.colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: theme.spacing.md,
-  },
-  txDetails: {
-    flex: 1,
-  },
-  txDescription: {
-    fontSize: theme.typography.sizes.sm,
-    fontWeight: theme.typography.weights.semibold,
-    color: theme.colors.textPrimary,
-  },
-  txSubRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 2,
-  },
-  txDate: {
-    fontSize: theme.typography.sizes.xs,
-    color: theme.colors.textMuted,
-  },
-  categoryBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-  },
-  categoryBadgeText: {
-    fontSize: 11,
-    color: theme.colors.textSecondary,
-  },
-  txAmount: {
-    fontSize: theme.typography.sizes.base,
-    fontWeight: theme.typography.weights.bold,
-    marginLeft: theme.spacing.sm,
-  },
-});
+const getStyles = (theme: Theme, isDark: boolean) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+    },
+    scrollContent: {
+      paddingBottom: 40,
+    },
+    bellBtn: {
+      position: 'relative',
+      padding: 9,
+      borderRadius: 999,
+      backgroundColor: theme.colors.surfaceAlt,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    bellBadge: {
+      position: 'absolute',
+      top: -2,
+      right: -2,
+      backgroundColor: theme.colors.danger,
+      minWidth: 16,
+      height: 16,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 3,
+    },
+    bellBadgeText: {
+      color: '#ffffff',
+      fontSize: 9,
+      fontWeight: '700',
+    },
+
+    // GUEST EXPERIENCE
+    guestContainer: {
+      paddingHorizontal: 16,
+      marginTop: 8,
+    },
+    guestHeroCard: {
+      padding: 24,
+      borderRadius: 20,
+      backgroundColor: theme.colors.surface,
+      alignItems: 'center',
+      textAlign: 'center',
+      borderWidth: 1,
+      borderColor: theme.colors.surfaceBorder,
+    },
+    guestIconBadge: {
+      width: 48,
+      height: 48,
+      borderRadius: 14,
+      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 14,
+    },
+    guestHeroTitle: {
+      fontSize: 22,
+      fontWeight: '800',
+      letterSpacing: -0.5,
+      color: theme.colors.textPrimary,
+      textAlign: 'center',
+    },
+    guestHeroSubtitle: {
+      fontSize: 13.5,
+      color: theme.colors.textSecondary,
+      textAlign: 'center',
+      lineHeight: 20,
+      marginTop: 8,
+      paddingHorizontal: 8,
+    },
+    guestBtnGroup: {
+      width: '100%',
+      marginTop: 20,
+    },
+    guestPrimaryBtn: {
+      width: '100%',
+    },
+    guestFeaturesRow: {
+      flexDirection: 'row',
+      gap: 12,
+      marginTop: 14,
+    },
+    guestFeatureCard: {
+      flex: 1,
+      padding: 16,
+      backgroundColor: theme.colors.surface,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.colors.surfaceBorder,
+    },
+    guestFeatureTitle: {
+      fontSize: 13.5,
+      fontWeight: '700',
+      color: theme.colors.textPrimary,
+      marginTop: 8,
+    },
+    guestFeatureDesc: {
+      fontSize: 11.5,
+      color: theme.colors.textMuted,
+      lineHeight: 16,
+      marginTop: 4,
+    },
+
+    // 1. HERO TOTAL CARD
+    heroCardTouchable: {
+      marginHorizontal: 16,
+    },
+    heroCard: {
+      padding: 20,
+      backgroundColor: theme.colors.surface,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: theme.colors.surfaceBorder,
+    },
+    heroHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 8,
+    },
+    heroBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      paddingHorizontal: 9,
+      paddingVertical: 3.5,
+      borderRadius: 999,
+      backgroundColor: theme.colors.surfaceSubtle,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      maxWidth: '70%',
+    },
+    heroBadgeText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: theme.colors.textSecondary,
+      letterSpacing: 0.2,
+    },
+    heroDaysPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 999,
+      backgroundColor: theme.colors.surfaceSubtle,
+    },
+    heroDaysPillText: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: theme.colors.textMuted,
+    },
+    heroLabel: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: theme.colors.textMuted,
+      textTransform: 'uppercase',
+      letterSpacing: 0.6,
+      marginTop: 4,
+    },
+    heroAmount: {
+      fontSize: 34,
+      fontWeight: '800',
+      color: theme.colors.textPrimary,
+      letterSpacing: -0.8,
+    },
+    incomeBoostPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 999,
+      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+      borderWidth: 1,
+      borderColor: 'rgba(16, 185, 129, 0.25)',
+    },
+    incomeBoostText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: theme.colors.income,
+    },
+    noBudgetHeading: {
+      fontSize: 22,
+      fontWeight: '800',
+      color: theme.colors.textPrimary,
+      marginTop: 6,
+      marginBottom: 4,
+      letterSpacing: -0.4,
+    },
+    heroSubnote: {
+      fontSize: 12.5,
+      color: theme.colors.textSecondary,
+      marginTop: 4,
+      marginBottom: 6,
+      lineHeight: 18,
+    },
+    progressContainer: {
+      marginTop: 14,
+    },
+    progressBarBg: {
+      height: 7,
+      backgroundColor: theme.colors.surfaceAlt,
+      borderRadius: 999,
+      overflow: 'hidden',
+    },
+    progressBarFill: {
+      height: '100%',
+      borderRadius: 999,
+    },
+    progressMetaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: 7,
+    },
+    progressSpentText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: theme.colors.textSecondary,
+    },
+    progressRemainingText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: theme.colors.primary,
+    },
+    heroFooterRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: 14,
+      paddingTop: 10,
+      borderTopWidth: 1,
+      borderTopColor: theme.colors.border,
+    },
+    heroFooterLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+    },
+    heroFooterLabel: {
+      fontSize: 11.5,
+      color: theme.colors.textMuted,
+      fontWeight: '500',
+    },
+    heroFooterValue: {
+      fontSize: 12.5,
+      fontWeight: '700',
+      color: theme.colors.textSecondary,
+    },
+
+    // Set Budget Prompt inside Hero when no budget
+    setBudgetPrompt: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: theme.colors.surfaceSubtle,
+      borderRadius: 12,
+      padding: 12,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      marginTop: 16,
+    },
+    setBudgetPromptLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      flex: 1,
+      marginRight: 8,
+    },
+    setBudgetPromptTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: theme.colors.textPrimary,
+    },
+    setBudgetPromptSubtitle: {
+      fontSize: 11,
+      color: theme.colors.textMuted,
+      marginTop: 1,
+    },
+    setBudgetBtn: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 999,
+      backgroundColor: theme.colors.primaryBg,
+      borderWidth: 1,
+      borderColor: `${theme.colors.primary}40`,
+    },
+    setBudgetBtnText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: theme.colors.primary,
+    },
+
+    // 2. UNIFIED TODAY'S SPENDING HUB & ACTIONS
+    dailySectionWrap: {
+      marginTop: 12,
+      paddingHorizontal: 16,
+    },
+    dailyHubCard: {
+      padding: 18,
+      backgroundColor: theme.colors.surface,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: theme.colors.surfaceBorder,
+    },
+    dailyCardExceeded: {
+      borderColor: 'rgba(251, 113, 133, 0.35)',
+    },
+    dailyHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 6,
+    },
+    dailyTitleWrap: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    dailySectionLabel: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: theme.colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    dailyStatusPillSafe: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 999,
+      backgroundColor: 'rgba(16, 185, 129, 0.10)',
+    },
+    dailyStatusTextSafe: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: theme.colors.primary,
+    },
+    dailyStatusPillDanger: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 999,
+      backgroundColor: 'rgba(251, 113, 133, 0.12)',
+    },
+    dailyStatusTextDanger: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: theme.colors.expense,
+    },
+    dailyMainRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
+      marginTop: 4,
+    },
+    dailySpentAmount: {
+      fontSize: 26,
+      fontWeight: '800',
+      color: theme.colors.textPrimary,
+      letterSpacing: -0.5,
+    },
+    dailySpentSubtext: {
+      fontSize: 11.5,
+      fontWeight: '500',
+      color: theme.colors.textMuted,
+      marginTop: 1,
+    },
+    dailyTargetPill: {
+      fontSize: 12.5,
+      fontWeight: '700',
+      color: theme.colors.textPrimary,
+      letterSpacing: -0.2,
+    },
+    dailyTargetSubtext: {
+      fontSize: 11,
+      fontWeight: '500',
+      color: theme.colors.textMuted,
+      marginTop: 2,
+    },
+    dailyProgressBarBg: {
+      height: 5,
+      backgroundColor: theme.colors.surfaceAlt,
+      borderRadius: 999,
+      overflow: 'hidden',
+      marginTop: 12,
+    },
+    dailyProgressBarFill: {
+      height: '100%',
+      borderRadius: 999,
+    },
+    actionConnectorStrip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      marginTop: 16,
+      marginBottom: 12,
+    },
+    connectorLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: theme.colors.border,
+    },
+    connectorText: {
+      fontSize: 10.5,
+      fontWeight: '700',
+      color: theme.colors.textMuted,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    integratedActionsRow: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+    integratedActionBtn: {
+      flex: 1,
+      padding: 12,
+      backgroundColor: theme.colors.surfaceAlt,
+      borderRadius: 14,
+      borderWidth: 1,
+    },
+    expenseBtnBorder: {
+      borderColor: 'rgba(251, 113, 133, 0.30)',
+    },
+    incomeBtnBorder: {
+      borderColor: 'rgba(16, 185, 129, 0.30)',
+    },
+    integratedActionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 8,
+    },
+    actionIconPill: {
+      width: 32,
+      height: 32,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    actionBadgeExpense: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 2,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 999,
+      backgroundColor: 'rgba(251, 113, 133, 0.14)',
+    },
+    actionBadgeTextExpense: {
+      fontSize: 9.5,
+      fontWeight: '700',
+      color: theme.colors.expense,
+    },
+    actionBadgeIncome: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 2,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 999,
+      backgroundColor: 'rgba(16, 185, 129, 0.14)',
+    },
+    actionBadgeTextIncome: {
+      fontSize: 9.5,
+      fontWeight: '700',
+      color: theme.colors.income,
+    },
+    integratedActionTitle: {
+      fontSize: 14.5,
+      fontWeight: '800',
+      color: theme.colors.textPrimary,
+      letterSpacing: -0.2,
+    },
+    integratedActionSubtitle: {
+      fontSize: 10.5,
+      color: theme.colors.textMuted,
+      marginTop: 2,
+    },
+
+    // Secondary shortcuts
+    secondaryShortcutsRow: {
+      flexDirection: 'row',
+      gap: 10,
+      marginTop: 10,
+    },
+    secondaryShortcutPill: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      paddingVertical: 10,
+      backgroundColor: theme.colors.surface,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.colors.surfaceBorder,
+    },
+    secondaryShortcutText: {
+      fontSize: 11.5,
+      fontWeight: '600',
+      color: theme.colors.textSecondary,
+    },
+
+    // 4. RECENT TRANSACTIONS
+    transactionsWrap: {
+      marginTop: 20,
+      paddingHorizontal: 16,
+    },
+    sectionHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 10,
+    },
+    sectionHeading: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: theme.colors.textPrimary,
+      letterSpacing: -0.2,
+    },
+    viewAllLink: {
+      fontSize: 12.5,
+      fontWeight: '600',
+      color: theme.colors.primary,
+    },
+    emptyCard: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 24,
+      borderRadius: 14,
+    },
+    emptyText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.colors.textSecondary,
+    },
+    emptySubtext: {
+      fontSize: 12,
+      color: theme.colors.textMuted,
+      marginTop: 4,
+      textAlign: 'center',
+    },
+    txList: {
+      gap: 8,
+    },
+    txCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      borderRadius: 14,
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: theme.colors.surfaceBorder,
+    },
+    txIconBox: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 12,
+    },
+    txInfo: {
+      flex: 1,
+    },
+    txTitle: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.colors.textPrimary,
+      letterSpacing: -0.2,
+    },
+    txMetaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginTop: 2,
+    },
+    txDate: {
+      fontSize: 11.5,
+      color: theme.colors.textMuted,
+    },
+    categoryBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+      paddingHorizontal: 5,
+      paddingVertical: 1.5,
+      borderRadius: 4,
+      backgroundColor: theme.colors.surfaceSubtle,
+    },
+    categoryBadgeText: {
+      fontSize: 10,
+      fontWeight: '600',
+      color: theme.colors.textSecondary,
+    },
+    txAmountText: {
+      fontSize: 15,
+      fontWeight: '700',
+      letterSpacing: -0.3,
+      marginLeft: 8,
+    },
+  });

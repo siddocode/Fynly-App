@@ -109,6 +109,8 @@ describe('Statement Import & Threshold Alerts (Integration Tests)', () => {
   });
 
   it('POST /api/v1/statements/import batch imports transactions and updates balance atomically', async () => {
+    const todayStr = new Date().toISOString().split('T')[0];
+
     // Import 2 expenses totaling ₹7,500 (750000 paise) which crosses 70% of the ₹10,000 budget!
     const res = await request(app)
       .post('/api/v1/statements/import')
@@ -117,14 +119,14 @@ describe('Statement Import & Threshold Alerts (Integration Tests)', () => {
         accountId,
         transactions: [
           {
-            date: '2026-10-24T12:00:00.000Z',
+            date: `${todayStr}T12:00:00.000Z`,
             description: 'Electronics Gadget Purchase',
             merchantName: 'Electronics Gadget Purchase',
             amountPaise: 500000, // ₹5,000.00
             type: 'EXPENSE',
           },
           {
-            date: '2026-10-25T14:00:00.000Z',
+            date: `${todayStr}T14:00:00.000Z`,
             description: 'Fine Dining Weekend',
             merchantName: 'Taj Hotel',
             amountPaise: 250000, // ₹2,500.00
@@ -157,12 +159,13 @@ describe('Statement Import & Threshold Alerts (Integration Tests)', () => {
   });
 
   it('Re-previewing the same statement identifies transactions as duplicate', async () => {
+    const todayStr = new Date().toISOString().split('T')[0];
     const previewRes = await request(app)
       .post('/api/v1/statements/preview')
       .set('Authorization', `Bearer ${token}`)
       .send({
         accountId,
-        csvContent: `Date,Description,Debit,Credit\n2026-10-24,Electronics Gadget Purchase,5000.00,`,
+        csvContent: `Date,Description,Debit,Credit\n${todayStr},Electronics Gadget Purchase,5000.00,`,
       });
 
     expect(previewRes.status).toBe(200);

@@ -177,4 +177,32 @@ describe('Transactions API & Financial Integrity', () => {
     // Cleanup other user
     await prisma.user.delete({ where: { id: otherUserId } });
   });
+
+  it('DELETE /api/v1/transactions/history/clear clears all transactions for user', async () => {
+    // Create a transaction first
+    await request(app)
+      .post('/api/v1/transactions')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        accountId,
+        type: 'EXPENSE',
+        amountPaise: '50000',
+        date: new Date().toISOString(),
+        description: 'Temporary Test Expense',
+      });
+
+    const res = await request(app)
+      .delete('/api/v1/transactions/history/clear?resetBalances=true')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+
+    const checkRes = await request(app)
+      .get('/api/v1/transactions')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(checkRes.status).toBe(200);
+    expect(checkRes.body.data.transactions.length).toBe(0);
+  });
 });

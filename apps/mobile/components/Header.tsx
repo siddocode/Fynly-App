@@ -1,21 +1,58 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { theme } from '../lib/theme';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useTheme } from '../lib/theme';
+import { Sun, Moon } from 'lucide-react-native';
 
 interface HeaderProps {
   title: string;
   subtitle?: string;
   rightElement?: React.ReactNode;
+  hideThemeToggle?: boolean;
 }
 
-export const Header: React.FC<HeaderProps> = ({ title, subtitle, rightElement }) => {
+export const Header: React.FC<HeaderProps> = ({
+  title,
+  subtitle,
+  rightElement,
+  hideThemeToggle = false,
+}) => {
+  const { theme, mode, toggleTheme } = useTheme();
+
   return (
     <View style={styles.container}>
       <View style={styles.textContainer}>
-        <Text style={styles.title}>{title}</Text>
-        {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+        <Text style={[styles.title, { color: theme.colors.textPrimary }]} numberOfLines={1} adjustsFontSizeToFit>
+          {title}
+        </Text>
+        {subtitle ? (
+          <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+            {subtitle}
+          </Text>
+        ) : null}
       </View>
-      {rightElement ? <View style={styles.right}>{rightElement}</View> : null}
+      <View style={styles.rightActions}>
+        {!hideThemeToggle && (
+          <TouchableOpacity
+            onPress={toggleTheme}
+            style={[
+              styles.themeToggleBtn,
+              {
+                backgroundColor: theme.colors.surfaceAlt,
+                borderColor: theme.colors.border,
+              },
+            ]}
+            accessibilityLabel={`Switch to ${mode === 'light' ? 'dark' : 'normal'} mode`}
+            accessibilityRole="button"
+          >
+            {mode === 'light' ? (
+              <Moon size={18} color={theme.colors.textPrimary} />
+            ) : (
+              <Sun size={18} color={theme.colors.warning} />
+            )}
+          </TouchableOpacity>
+        )}
+        {rightElement ? <View style={styles.right}>{rightElement}</View> : null}
+      </View>
     </View>
   );
 };
@@ -25,24 +62,38 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: theme.spacing.md,
-    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
   },
   textContainer: {
     flex: 1,
   },
   title: {
-    fontSize: theme.typography.sizes['2xl'],
-    fontWeight: theme.typography.weights.bold,
-    color: theme.colors.textPrimary,
-    letterSpacing: -0.5,
+    fontSize: 26,
+    fontWeight: '800',
+    letterSpacing: -0.7,
   },
   subtitle: {
-    fontSize: theme.typography.sizes.sm,
-    color: theme.colors.textSecondary,
+    fontSize: 13,
     marginTop: 2,
+    letterSpacing: -0.1,
+    fontWeight: '500',
+  },
+  rightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  themeToggleBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   right: {
-    marginLeft: theme.spacing.md,
+    marginLeft: 4,
   },
 });
+

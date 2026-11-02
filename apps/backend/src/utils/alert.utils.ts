@@ -8,7 +8,7 @@ export const evaluateBudgetThresholds = async (
   const generatedAlerts: Array<{ title: string; type: string }> = [];
 
   const budgets = await prisma.budget.findMany({
-    where: { userId },
+    where: { userId, isActive: true },
     include: {
       categories: {
         include: { category: true },

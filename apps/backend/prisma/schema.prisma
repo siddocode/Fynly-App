@@ -126,11 +126,14 @@ model Budget {
   name         String
   period       BudgetPeriod     @default(MONTHLY)
   limitPaise   BigInt           // Total overall limit in paise
+  dailyLimitPaise  BigInt?      // Planned daily limit in paise
+  weeklyLimitPaise BigInt?      // Planned weekly limit in paise
   startDate    DateTime
   endDate      DateTime?
   alert70Sent  Boolean          @default(false)
   alert90Sent  Boolean          @default(false)
   alert100Sent Boolean          @default(false)
+  isActive     Boolean          @default(true)
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
 

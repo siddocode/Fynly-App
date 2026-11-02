@@ -17,7 +17,7 @@ export const createTransactionSchema = z.object({
     .refine((v) => BigInt(v) > 0n, 'Amount must be greater than zero')
     .transform((val) => BigInt(val)),
   date: z.string().default(() => new Date().toISOString()),
-  description: z.string().min(1, 'Description is required'),
+  description: z.string().optional().default(''),
   merchantName: z.string().optional(),
   notes: z.string().optional(),
   referenceNumber: z.string().optional(),
@@ -77,13 +77,38 @@ export const createTransaction = async (
       }
     }
 
+    let finalCategoryId = body.categoryId || null;
+    if (body.type === 'EXPENSE' && !finalCategoryId) {
+      const defaultCategory = await prisma.category.findFirst({
+        where: {
+          OR: [
+            { userId, slug: 'other' },
+            { userId, name: { equals: 'Other', mode: 'insensitive' } },
+            { isDefault: true, slug: 'other' },
+            { userId },
+          ],
+        },
+      });
+      if (defaultCategory) {
+        finalCategoryId = defaultCategory.id;
+      }
+    }
+
+    const effectiveDescription =
+      body.description.trim() ||
+      (body.type === 'INCOME'
+        ? 'Income'
+        : body.type === 'TRANSFER'
+        ? 'Transfer'
+        : 'General Expense');
+
     // Deduplication check
     const fingerprintHash = generateTransactionFingerprint({
       userId,
       accountId: body.accountId,
       date: body.date,
       amountPaise: body.amountPaise,
-      description: body.description,
+      description: effectiveDescription,
       merchantName: body.merchantName,
     });
 
@@ -107,11 +132,11 @@ export const createTransaction = async (
         data: {
           userId,
           accountId: body.accountId,
-          categoryId: body.categoryId || null,
+          categoryId: finalCategoryId,
           type: body.type,
           amountPaise: body.amountPaise,
           date: new Date(body.date),
-          description: body.description.trim(),
+          description: effectiveDescription,
           merchantName: body.merchantName?.trim() || null,
           notes: body.notes?.trim() || null,
           fingerprintHash,
@@ -348,6 +373,87 @@ export const deleteTransaction = async (
     res.status(200).json({
       success: true,
       data: { message: 'Transaction deleted successfully' },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const clearTransactions = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.user!.userId;
+    const resetBalances = req.query.resetBalances === 'true';
+    const month = req.query.month ? parseInt(req.query.month as string, 10) : undefined;
+    const year = req.query.year ? parseInt(req.query.year as string, 10) : undefined;
+
+    const result = await prisma.$transaction(
+      async (tx) => {
+        if (month !== undefined && year !== undefined && !isNaN(month) && !isNaN(year)) {
+          const startDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
+          const lastDay = new Date(year, month, 0).getDate();
+          const endDate = new Date(year, month - 1, lastDay, 23, 59, 59, 999);
+
+          const periodTransactions = await tx.transaction.findMany({
+            where: {
+              userId,
+              date: {
+                gte: startDate,
+                lte: endDate,
+              },
+            },
+          });
+
+          for (const t of periodTransactions) {
+            if (t.type === 'EXPENSE') {
+              await tx.financialAccount.update({
+                where: { id: t.accountId },
+                data: { balancePaise: { increment: t.amountPaise } },
+              });
+            } else if (t.type === 'INCOME' || t.type === 'REFUND') {
+              await tx.financialAccount.update({
+                where: { id: t.accountId },
+                data: { balancePaise: { decrement: t.amountPaise } },
+              });
+            }
+          }
+
+          if (periodTransactions.length > 0) {
+            await tx.transaction.deleteMany({
+              where: {
+                id: { in: periodTransactions.map((t) => t.id) },
+              },
+            });
+          }
+
+          return { count: periodTransactions.length, month, year };
+        }
+
+        const deleted = await tx.transaction.deleteMany({
+          where: { userId },
+        });
+
+        if (resetBalances) {
+          await tx.financialAccount.updateMany({
+            where: { userId },
+            data: { balancePaise: 0n },
+          });
+        }
+
+        return { count: deleted.count, resetBalances };
+      },
+      { maxWait: 10000, timeout: 25000 }
+    );
+
+    res.status(200).json({
+      success: true,
+      data: {
+        message: `Successfully cleared ${result.count} transactions`,
+        ...result,
+      },
     });
   } catch (error) {
     next(error);

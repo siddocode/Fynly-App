@@ -2,24 +2,26 @@ import React from 'react';
 import {
   TouchableOpacity,
   Text,
-  StyleSheet,
   ActivityIndicator,
   ViewStyle,
   TextStyle,
   StyleProp,
 } from 'react-native';
-import { theme } from '../lib/theme';
+import { useTheme } from '../lib/theme';
+
+let globalLastButtonPressTimestamp = 0;
 
 interface ButtonProps {
   title: string;
-  onPress: () => void;
-  variant?: 'primary' | 'secondary' | 'outline' | 'ghost';
+  onPress: () => void | Promise<any>;
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
   size?: 'sm' | 'md' | 'lg';
   loading?: boolean;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
   textStyle?: StyleProp<TextStyle>;
   icon?: React.ReactNode;
+  debounceMs?: number;
 }
 
 export const Button: React.FC<ButtonProps> = ({
@@ -32,26 +34,110 @@ export const Button: React.FC<ButtonProps> = ({
   style,
   textStyle,
   icon,
+  debounceMs = 150,
 }) => {
-  const getButtonStyles = (): StyleProp<ViewStyle> => {
-    const list: ViewStyle[] = [styles.base];
+  const { theme, isDark } = useTheme();
+  const lastPressRef = React.useRef<number>(0);
+  const isExecutingRef = React.useRef<boolean>(false);
 
-    if (size === 'sm') list.push(styles.sm);
-    else if (size === 'lg') list.push(styles.lg);
-    else list.push(styles.md);
+  const handlePress = React.useCallback(() => {
+    if (disabled || loading) return;
 
-    if (variant === 'secondary') list.push(styles.secondary);
-    else if (variant === 'outline') list.push(styles.outline);
-    else if (variant === 'ghost') list.push(styles.ghost);
-    else list.push(styles.primary);
+    const now = Date.now();
+    // Drop rapid-fire duplicate clicks
+    if (
+      now - lastPressRef.current < debounceMs ||
+      isExecutingRef.current
+    ) {
+      return;
+    }
 
-    if (disabled || loading) list.push(styles.disabled);
+    lastPressRef.current = now;
+    isExecutingRef.current = true;
 
-    return list;
+    try {
+      const result = onPress();
+      if (result && typeof (result as any).then === 'function') {
+        (result as Promise<any>).finally(() => {
+          setTimeout(() => {
+            isExecutingRef.current = false;
+          }, 80);
+        });
+      } else {
+        setTimeout(() => {
+          isExecutingRef.current = false;
+        }, 80);
+      }
+    } catch (err) {
+      isExecutingRef.current = false;
+      throw err;
+    }
+  }, [disabled, loading, onPress, debounceMs]);
+
+  const getButtonStyles = (): ViewStyle => {
+    let paddingVertical = 12;
+    let paddingHorizontal = 18;
+
+    if (size === 'sm') {
+      paddingVertical = 8;
+      paddingHorizontal = 14;
+    } else if (size === 'lg') {
+      paddingVertical = 15;
+      paddingHorizontal = 22;
+    }
+
+    let variantStyles: ViewStyle = {
+      backgroundColor: theme.colors.primary,
+      shadowColor: theme.colors.primary,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: isDark ? 0.28 : 0.20,
+      shadowRadius: 10,
+      elevation: 3,
+    };
+
+    if (variant === 'secondary') {
+      variantStyles = {
+        backgroundColor: theme.colors.surfaceSubtle,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+      };
+    } else if (variant === 'outline') {
+      variantStyles = {
+        backgroundColor: isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(15, 23, 42, 0.02)',
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+      };
+    } else if (variant === 'ghost') {
+      variantStyles = {
+        backgroundColor: 'transparent',
+      };
+    } else if (variant === 'danger') {
+      variantStyles = {
+        backgroundColor: theme.colors.danger,
+        shadowColor: theme.colors.danger,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.25,
+        shadowRadius: 8,
+        elevation: 3,
+      };
+    }
+
+    return {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: theme.borderRadius.md,
+      gap: theme.spacing.sm,
+      paddingVertical,
+      paddingHorizontal,
+      ...variantStyles,
+      ...(disabled || loading ? { opacity: 0.55 } : {}),
+    };
   };
 
   const getTextColor = (): string => {
-    if (variant === 'primary') return theme.colors.textInverse;
+    if (variant === 'primary') return isDark ? '#070A12' : '#FFFFFF';
+    if (variant === 'danger') return '#FFFFFF';
     if (variant === 'outline') return theme.colors.primary;
     if (variant === 'ghost') return theme.colors.textSecondary;
     return theme.colors.textPrimary;
@@ -59,8 +145,8 @@ export const Button: React.FC<ButtonProps> = ({
 
   return (
     <TouchableOpacity
-      activeOpacity={0.8}
-      onPress={onPress}
+      activeOpacity={0.82}
+      onPress={handlePress}
       disabled={disabled || loading}
       style={[getButtonStyles(), style]}
     >
@@ -69,54 +155,24 @@ export const Button: React.FC<ButtonProps> = ({
       ) : (
         <>
           {icon}
-          <Text style={[styles.text, { color: getTextColor() }, textStyle]}>{title}</Text>
+          <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            style={[
+              {
+                fontSize: size === 'sm' ? 12 : size === 'lg' ? 15 : 13.5,
+                fontWeight: '700',
+                letterSpacing: -0.2,
+                color: getTextColor(),
+                flexShrink: 1,
+              },
+              textStyle,
+            ]}
+          >
+            {title}
+          </Text>
         </>
       )}
     </TouchableOpacity>
   );
 };
-
-const styles = StyleSheet.create({
-  base: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: theme.borderRadius.md,
-    gap: theme.spacing.sm,
-  },
-  sm: {
-    paddingVertical: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.md,
-  },
-  md: {
-    paddingVertical: theme.spacing.md,
-    paddingHorizontal: theme.spacing.lg,
-  },
-  lg: {
-    paddingVertical: theme.spacing.lg,
-    paddingHorizontal: theme.spacing.xl,
-  },
-  primary: {
-    backgroundColor: theme.colors.primary,
-  },
-  secondary: {
-    backgroundColor: theme.colors.surfaceSubtle,
-    borderWidth: 1,
-    borderColor: theme.colors.surfaceBorder,
-  },
-  outline: {
-    backgroundColor: 'transparent',
-    borderWidth: 1.5,
-    borderColor: theme.colors.primary,
-  },
-  ghost: {
-    backgroundColor: 'transparent',
-  },
-  disabled: {
-    opacity: 0.5,
-  },
-  text: {
-    fontSize: theme.typography.sizes.base,
-    fontWeight: theme.typography.weights.semibold,
-  },
-});

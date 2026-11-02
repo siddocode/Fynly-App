@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   createOrUpdateBudget,
   getBudgets,
+  activateBudget,
   deleteBudget,
 } from '../controllers/budget.controller.js';
 import { requireAuth } from '../middleware/auth.middleware.js';
@@ -12,4 +13,6 @@ budgetRouter.use(requireAuth);
 
 budgetRouter.post('/', createOrUpdateBudget);
 budgetRouter.get('/', getBudgets);
+budgetRouter.patch('/:id/activate', activateBudget);
 budgetRouter.delete('/:id', deleteBudget);
+

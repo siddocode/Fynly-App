@@ -4,11 +4,49 @@ import { createApp } from '../src/app.js';
 import { prisma } from '../src/utils/prisma.js';
 import {
   getPeriodBoundaries,
+  getBudgetBoundaries,
   calculateSafeToSpend,
   calculateBudgetUsage,
 } from '../src/utils/budget.utils.js';
 
 describe('Budget Calculations & Date Boundaries (Unit Tests)', () => {
+  it('automatically calculates the exact number of days for any selected month including leap years', () => {
+    // February 2028 (leap year)
+    const feb2028LastDay = new Date(2028, 2, 0).getDate();
+    expect(feb2028LastDay).toBe(29);
+    const feb2028 = getBudgetBoundaries({
+      startDate: new Date(2028, 1, 1),
+      endDate: new Date(2028, 1, feb2028LastDay, 23, 59, 59, 999),
+    });
+    expect(feb2028.totalDays).toBe(29);
+
+    // February 2027 (non-leap year)
+    const feb2027LastDay = new Date(2027, 2, 0).getDate();
+    expect(feb2027LastDay).toBe(28);
+    const feb2027 = getBudgetBoundaries({
+      startDate: new Date(2027, 1, 1),
+      endDate: new Date(2027, 1, feb2027LastDay, 23, 59, 59, 999),
+    });
+    expect(feb2027.totalDays).toBe(28);
+
+    // August 2027 (31 days)
+    const aug2027LastDay = new Date(2027, 8, 0).getDate();
+    expect(aug2027LastDay).toBe(31);
+    const aug2027 = getBudgetBoundaries({
+      startDate: new Date(2027, 7, 1),
+      endDate: new Date(2027, 7, aug2027LastDay, 23, 59, 59, 999),
+    });
+    expect(aug2027.totalDays).toBe(31);
+
+    // November 2026 (30 days)
+    const nov2026LastDay = new Date(2026, 11, 0).getDate();
+    expect(nov2026LastDay).toBe(30);
+    const nov2026 = getBudgetBoundaries({
+      startDate: new Date(2026, 10, 1),
+      endDate: new Date(2026, 10, nov2026LastDay, 23, 59, 59, 999),
+    });
+    expect(nov2026.totalDays).toBe(30);
+  });
   it('calculates DAILY boundaries correctly', () => {
     const testDate = new Date('2026-10-25T15:30:00.000Z');
     const boundaries = getPeriodBoundaries('DAILY', testDate);
@@ -120,7 +158,7 @@ describe('Budget & Dashboard API (Integration Tests)', () => {
       .post('/api/v1/budgets')
       .set('Authorization', `Bearer ${token}`)
       .send({
-        name: 'October Monthly Allowance',
+        name: 'Active Monthly Allowance',
         period: 'MONTHLY',
         limitPaise: 5000000, // ₹50,000.00
         categories: [
@@ -133,7 +171,7 @@ describe('Budget & Dashboard API (Integration Tests)', () => {
 
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
-    expect(res.body.data.name).toBe('October Monthly Allowance');
+    expect(res.body.data.name).toBe('Active Monthly Allowance');
     expect(res.body.data.categories.length).toBe(1);
   });
 
@@ -181,5 +219,95 @@ describe('Budget & Dashboard API (Integration Tests)', () => {
     expect(res.body.data).toHaveProperty('budget');
     expect(res.body.data.topCategories.length).toBeGreaterThanOrEqual(1);
     expect(res.body.data.recentTransactions.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('DELETE /api/v1/budgets/:id completely removes budget and cascades categories', async () => {
+    const listRes = await request(app)
+      .get('/api/v1/budgets')
+      .set('Authorization', `Bearer ${token}`);
+    expect(listRes.body.data.length).toBeGreaterThanOrEqual(1);
+    const budgetId = listRes.body.data[0].id;
+
+    const delRes = await request(app)
+      .delete(`/api/v1/budgets/${budgetId}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(delRes.status).toBe(200);
+    expect(delRes.body.success).toBe(true);
+    expect(delRes.body.data.message).toBe('Budget deleted successfully');
+
+    const checkRes = await request(app)
+      .get('/api/v1/budgets')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(checkRes.status).toBe(200);
+    expect(checkRes.body.data.length).toBe(0);
+
+    // Verify dashboard reflects no active budget after deletion
+    const dashRes = await request(app)
+      .get('/api/v1/dashboard/summary')
+      .set('Authorization', `Bearer ${token}`);
+    expect(dashRes.status).toBe(200);
+    expect(dashRes.body.data.budget).toBeNull();
+  });
+
+  it('PATCH /api/v1/budgets/:id/activate toggles active budget plan', async () => {
+    // Create Budget Plan A
+    const b1 = await request(app)
+      .post('/api/v1/budgets')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        name: 'Plan A',
+        limitPaise: 4000000,
+      });
+
+    // Create Budget Plan B
+    const b2 = await request(app)
+      .post('/api/v1/budgets')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        name: 'Plan B',
+        limitPaise: 6000000,
+      });
+
+    expect(b1.status).toBe(201);
+    expect(b2.status).toBe(201);
+
+    // Activate Plan A
+    const activateRes = await request(app)
+      .patch(`/api/v1/budgets/${b1.body.data.id}/activate`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(activateRes.status).toBe(200);
+    expect(activateRes.body.success).toBe(true);
+
+    // Verify Dashboard shows Plan A
+    const dash = await request(app)
+      .get('/api/v1/dashboard/summary')
+      .set('Authorization', `Bearer ${token}`);
+    expect(dash.status).toBe(200);
+    expect(dash.body.data.budget.id).toBe(b1.body.data.id);
+    expect(dash.body.data.budget.name).toBe('Plan A');
+
+    // Clean up
+    await request(app).delete(`/api/v1/budgets/${b1.body.data.id}`).set('Authorization', `Bearer ${token}`);
+    await request(app).delete(`/api/v1/budgets/${b2.body.data.id}`).set('Authorization', `Bearer ${token}`);
+  });
+
+  it('DELETE /api/v1/categories/:id allows deleting default categories', async () => {
+    const catsRes = await request(app)
+      .get('/api/v1/categories')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(catsRes.status).toBe(200);
+    const defaultCat = catsRes.body.data.find((c: any) => c.isDefault);
+    expect(defaultCat).toBeDefined();
+
+    const delRes = await request(app)
+      .delete(`/api/v1/categories/${defaultCat.id}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(delRes.status).toBe(200);
+    expect(delRes.body.success).toBe(true);
   });
 });

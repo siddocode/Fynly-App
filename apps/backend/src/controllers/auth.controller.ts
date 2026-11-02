@@ -310,8 +310,17 @@ export const sendOtp = async (
       },
     });
 
-    // Send email via Brevo
-    await sendOtpEmail(email, otp, purpose);
+    // Clear console output for easy dev verification
+    console.log(`\n========================================`);
+    console.log(`[AUTH-OTP] Code for ${email} (${purpose}): ${otp}`);
+    console.log(`========================================\n`);
+
+    // Send email via Brevo (non-blocking resilience)
+    sendOtpEmail(email, otp, purpose).catch((err) => {
+      console.warn('[Brevo] Dispatch error (check daily free quota):', err);
+    });
+
+    const isDev = process.env.NODE_ENV !== 'production';
 
     res.status(200).json({
       success: true,
@@ -319,6 +328,7 @@ export const sendOtp = async (
       data: {
         email,
         purpose,
+        ...(isDev ? { debugOtp: otp } : {}),
       },
     });
   } catch (error) {

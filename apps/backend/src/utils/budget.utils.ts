@@ -70,6 +70,51 @@ export const getPeriodBoundaries = (
   };
 };
 
+export const getBudgetBoundaries = (
+  budget: { startDate?: Date | string | null; endDate?: Date | string | null; period?: string },
+  now: Date = new Date()
+): PeriodBoundaries => {
+  if (budget.startDate && budget.endDate) {
+    const start = new Date(budget.startDate);
+    const end = new Date(budget.endDate);
+    const msPerDay = 1000 * 60 * 60 * 24;
+    const totalDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / msPerDay));
+
+    if (now.getTime() < start.getTime()) {
+      // Future budget (e.g. December when today is November)
+      return {
+        startDate: start,
+        endDate: end,
+        totalDays,
+        remainingDays: totalDays,
+        daysElapsed: 0,
+      };
+    } else if (now.getTime() > end.getTime()) {
+      // Past budget
+      return {
+        startDate: start,
+        endDate: end,
+        totalDays,
+        remainingDays: 0,
+        daysElapsed: totalDays,
+      };
+    } else {
+      // Currently active cycle
+      const remainingDays = Math.max(1, Math.ceil((end.getTime() - now.getTime()) / msPerDay));
+      const daysElapsed = Math.max(0, totalDays - remainingDays);
+      return {
+        startDate: start,
+        endDate: end,
+        totalDays,
+        remainingDays,
+        daysElapsed,
+      };
+    }
+  }
+
+  return getPeriodBoundaries((budget.period as BudgetPeriod) || 'MONTHLY', now);
+};
+
 export const calculateSafeToSpend = (
   remainingBudgetPaise: bigint,
   remainingDays: number
@@ -116,4 +161,40 @@ export const calculateBudgetUsage = (
     remainingPaise,
     status,
   };
+};
+
+export const detectMonthFromName = (
+  name: string,
+  now: Date = new Date()
+): { month: number; year: number } | null => {
+  const normalized = name.toLowerCase().trim();
+  const monthMap: Array<{ regex: RegExp; month: number }> = [
+    { regex: /\b(january|jan)\b/i, month: 1 },
+    { regex: /\b(february|feb)\b/i, month: 2 },
+    { regex: /\b(march|mar)\b/i, month: 3 },
+    { regex: /\b(april|apr)\b/i, month: 4 },
+    { regex: /\b(may)\b/i, month: 5 },
+    { regex: /\b(june|jun)\b/i, month: 6 },
+    { regex: /\b(july|jul)\b/i, month: 7 },
+    { regex: /\b(august|aug)\b/i, month: 8 },
+    { regex: /\b(september|sep|sept)\b/i, month: 9 },
+    { regex: /\b(october|oct)\b/i, month: 10 },
+    { regex: /\b(november|nov)\b/i, month: 11 },
+    { regex: /\b(december|dec)\b/i, month: 12 },
+  ];
+
+  for (const item of monthMap) {
+    if (item.regex.test(normalized)) {
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth() + 1;
+      const yearMatch = normalized.match(/\b(202\d|203\d)\b/);
+      let year = yearMatch ? parseInt(yearMatch[1], 10) : currentYear;
+      if (!yearMatch && item.month < currentMonth) {
+        year = currentYear + 1;
+      }
+      return { month: item.month, year };
+    }
+  }
+
+  return null;
 };

@@ -24,6 +24,17 @@
     },
     "plugins": [
       "expo-router"
-    ]
+    ],
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "473338a0-c336-4455-950c-6d22c85c468e"
+      }
+    },
+    "owner": "mishrasid007"
   }
 }

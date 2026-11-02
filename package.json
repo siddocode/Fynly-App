@@ -6,12 +6,16 @@
     "apps/*"
   ],
   "scripts": {
+    "build": "npm run build --workspace=@fynly/backend",
+    "start": "npm run start --workspace=@fynly/backend",
+    "start:backend": "npm run start --workspace=@fynly/backend",
     "dev:backend": "npm run dev --workspace=@fynly/backend",
     "dev:mobile": "npm run start --workspace=@fynly/mobile",
     "dev:mobile:clear": "npm run start:clear --workspace=@fynly/mobile",
     "dev:mobile:tunnel": "npm run start --workspace=@fynly/mobile -- --tunnel",
     "test:backend": "npm run test --workspace=@fynly/backend",
     "build:backend": "npm run build --workspace=@fynly/backend",
+    "build:mobile": "npm run build --workspace=@fynly/mobile",
     "prisma:generate": "npm run prisma:generate --workspace=@fynly/backend",
     "prisma:migrate": "npm run prisma:migrate --workspace=@fynly/backend",
     "postinstall": "node scripts/patch-expo-notifications.js"

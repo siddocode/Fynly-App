@@ -342,8 +342,9 @@ export const getDashboardSummary = async (
     } else if (monthlyBudget?.dailyLimitPaise) {
       dailyLimitPaise = monthlyBudget.dailyLimitPaise;
       // Add boost from income if any
-      if (budgetSummary?.incomePaise && BigInt(budgetSummary.incomePaise) > 0n && (budgetSummary?.remainingDays || 1) > 0) {
-        dailyLimitPaise += BigInt(budgetSummary.incomePaise) / BigInt(budgetSummary.remainingDays);
+      const remDays = budgetSummary?.remainingDays && budgetSummary.remainingDays > 0 ? budgetSummary.remainingDays : 0;
+      if (budgetSummary?.incomePaise && BigInt(budgetSummary.incomePaise) > 0n && remDays > 0) {
+        dailyLimitPaise += BigInt(budgetSummary.incomePaise) / BigInt(remDays);
       }
     } else if (safeToSpendTodayPaise > 0n) {
       dailyLimitPaise = safeToSpendTodayPaise;

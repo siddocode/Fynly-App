@@ -59,12 +59,21 @@ const getBaseUrl = (): string => {
 
 export const API_BASE_URL = getBaseUrl();
 
+// No client-side caching: every query is considered stale immediately, is
+// discarded as soon as it has no active observers, and always refetches when a
+// screen mounts. This prevents stale budget/transaction data from lingering.
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 1,
-      staleTime: 1000 * 15,
-      refetchOnWindowFocus: false,
+      staleTime: 0,
+      gcTime: 0,
+      refetchOnMount: 'always',
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
+    },
+    mutations: {
+      retry: 0,
     },
   },
 });

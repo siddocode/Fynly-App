@@ -23,10 +23,11 @@ import {
   PlusCircle,
   ArrowLeftRight,
   Check,
+  CheckCircle2,
   Plus,
   Settings2,
 } from 'lucide-react-native';
-import { api, rupeesToPaise } from '../lib/api';
+import { api, rupeesToPaise, formatPaiseToRupees } from '../lib/api';
 import { useTheme, Theme } from '../lib/theme';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
@@ -57,9 +58,11 @@ export default function AddTransactionScreen() {
   const [notes, setNotes] = useState('');
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
 
   const scrollViewRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  const amountInputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
   const descriptionInputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
   const notesInputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
 
@@ -91,6 +94,31 @@ export default function AddTransactionScreen() {
     queryKey: ['categories'],
     queryFn: api.getCategories,
   });
+
+  // Today's logged expenses, shown inline so the user can immediately see
+  // what has already been added while logging a new expense.
+  const { data: todayExpensesData } = useQuery({
+    queryKey: ['transactions', 'today-expenses'],
+    queryFn: () => {
+      const now = new Date();
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString();
+      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).toISOString();
+      return api.getTransactions({ type: 'EXPENSE', startDate: start, endDate: end, limit: 20 });
+    },
+    enabled: type === 'EXPENSE',
+  });
+
+  const todayExpenses = todayExpensesData?.transactions || [];
+  const todayExpenseTotalPaise = todayExpenses.reduce(
+    (sum, tx) => sum + BigInt(tx.amountPaise),
+    0n
+  );
+
+  useEffect(() => {
+    if (!successMessage) return;
+    const timer = setTimeout(() => setSuccessMessage(null), 2600);
+    return () => clearTimeout(timer);
+  }, [successMessage]);
 
   // Set default account when loaded
   useEffect(() => {
@@ -136,51 +164,6 @@ export default function AddTransactionScreen() {
         allowDuplicate: true,
       });
     },
-    onMutate: async () => {
-      // Optimistic cache update so Home Screen and Budgets screen reflect immediately
-      await Promise.all([
-        queryClient.cancelQueries({ queryKey: ['dashboard'] }),
-        queryClient.cancelQueries({ queryKey: ['budgets'] }),
-      ]);
-      const previousDashboard = queryClient.getQueryData<any>(['dashboard']);
-      if (previousDashboard) {
-        const addedPaise = BigInt(rupeesToPaise(amountStr) || 0);
-        let updatedTodaySpent = BigInt(previousDashboard.todaySpentPaise || '0');
-        let updatedTotalBalance = BigInt(previousDashboard.totalBalancePaise || '0');
-        let updatedBudget = previousDashboard.budget ? { ...previousDashboard.budget } : null;
-        let updatedSafeToSpend = previousDashboard.safeToSpendTodayPaise
-          ? BigInt(previousDashboard.safeToSpendTodayPaise)
-          : null;
-
-        if (type === 'EXPENSE') {
-          updatedTodaySpent += addedPaise;
-          updatedTotalBalance -= addedPaise;
-          if (updatedSafeToSpend !== null) {
-            updatedSafeToSpend = updatedSafeToSpend > addedPaise ? updatedSafeToSpend - addedPaise : 0n;
-          }
-          if (updatedBudget) {
-            const currentSpent = BigInt(updatedBudget.spentPaise || '0') + addedPaise;
-            const limit = BigInt(updatedBudget.limitPaise || '0');
-            const remaining = limit > currentSpent ? limit - currentSpent : 0n;
-            const pct = limit > 0n ? Number((currentSpent * 10000n) / limit) / 100 : 100;
-            updatedBudget.spentPaise = currentSpent.toString();
-            updatedBudget.remainingPaise = remaining.toString();
-            updatedBudget.usagePercentage = Math.round(pct);
-          }
-        } else if (type === 'INCOME') {
-          updatedTotalBalance += addedPaise;
-        }
-
-        queryClient.setQueryData(['dashboard'], {
-          ...previousDashboard,
-          todaySpentPaise: updatedTodaySpent.toString(),
-          totalBalancePaise: updatedTotalBalance.toString(),
-          safeToSpendTodayPaise: updatedSafeToSpend !== null ? updatedSafeToSpend.toString() : previousDashboard.safeToSpendTodayPaise,
-          budget: updatedBudget,
-        });
-      }
-      return { previousDashboard };
-    },
     onSuccess: async () => {
       const fallbackCat = categories?.find(
         (c) => c.slug === 'other' || c.name.toLowerCase() === 'other'
@@ -202,12 +185,25 @@ export default function AddTransactionScreen() {
         queryClient.refetchQueries({ queryKey: ['notifications'], type: 'all' }),
         queryClient.refetchQueries({ queryKey: ['me'], type: 'all' }),
       ]);
+
+      if (type === 'EXPENSE') {
+        // Keep the sheet open so the user can see the entry they just added
+        // and quickly log more expenses without reopening the screen.
+        setAmountStr('');
+        setDescription('');
+        setNotes('');
+        setSelectedCategoryId(null);
+        setDuplicateWarning(null);
+        setErrorMessage(null);
+        setSuccessMessage('Expense added successfully');
+        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+        setTimeout(() => amountInputRef.current?.focus(), 120);
+        return;
+      }
+
       safeDismiss();
     },
-    onError: (err: any, _vars, context) => {
-      if (context?.previousDashboard) {
-        queryClient.setQueryData(['dashboard'], context.previousDashboard);
-      }
+    onError: (err: any) => {
       if (err.status === 409) {
         setDuplicateWarning(
           'An identical transaction on this date was detected. Tap below to confirm and add anyway.'
@@ -355,10 +351,70 @@ export default function AddTransactionScreen() {
               </TouchableOpacity>
             </View>
 
+            {successMessage && (
+              <View style={styles.successBanner}>
+                <CheckCircle2 size={16} color={theme.colors.primary} />
+                <Text style={styles.successBannerText}>{successMessage}</Text>
+              </View>
+            )}
+
+            {/* Today's added expenses, visible while logging a new expense */}
+            {type === 'EXPENSE' && (
+              <Card style={styles.todayCard} variant="subtle">
+                <View style={styles.todayHeader}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={styles.todayTitle}>Added Today</Text>
+                    <View style={styles.todayCountBadge}>
+                      <Text style={styles.todayCountText}>{todayExpenses.length}</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.todayTotal}>
+                    {formatPaiseToRupees(todayExpenseTotalPaise.toString())}
+                  </Text>
+                </View>
+
+                {todayExpenses.length === 0 ? (
+                  <Text style={styles.todayEmpty}>
+                    Nothing added yet today. Your first expense will appear here.
+                  </Text>
+                ) : (
+                  <View style={styles.todayList}>
+                    {todayExpenses.slice(0, 5).map((tx) => (
+                      <View key={tx.id} style={styles.todayRow}>
+                        <View
+                          style={[
+                            styles.todayDot,
+                            { backgroundColor: tx.category?.color || theme.colors.expense },
+                          ]}
+                        />
+                        <Text style={styles.todayDesc} numberOfLines={1}>
+                          {tx.description || tx.category?.name || 'Expense'}
+                        </Text>
+                        {tx.category?.name ? (
+                          <Text style={styles.todayCat} numberOfLines={1}>
+                            {tx.category.name}
+                          </Text>
+                        ) : null}
+                        <Text style={styles.todayAmount}>
+                          -{formatPaiseToRupees(tx.amountPaise)}
+                        </Text>
+                      </View>
+                    ))}
+                    {todayExpenses.length > 5 && (
+                      <Text style={styles.todayMore}>
+                        +{todayExpenses.length - 5} more added today
+                      </Text>
+                    )}
+                  </View>
+                )}
+              </Card>
+            )}
+
             {/* Amount Hero Card */}
             <Card style={styles.amountCard}>
               <Text style={[styles.amountPrefix, { color: getAccentColor() }]}>₹</Text>
               <TextInput
+                ref={amountInputRef}
                 style={styles.amountInput}
                 placeholder="0.00"
                 placeholderTextColor={theme.colors.textMuted}
@@ -666,6 +722,100 @@ const getStyles = (theme: Theme) =>
     },
     typeBtnText: {
       fontSize: 13,
+      color: theme.colors.textMuted,
+      fontWeight: '600',
+    },
+    successBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      backgroundColor: theme.colors.primaryBg,
+      borderWidth: 1,
+      borderColor: theme.colors.primary,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      marginBottom: 14,
+    },
+    successBannerText: {
+      flex: 1,
+      fontSize: 13,
+      fontWeight: '700',
+      color: theme.colors.primary,
+    },
+    todayCard: {
+      padding: 14,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    todayHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 10,
+    },
+    todayTitle: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: theme.colors.textPrimary,
+    },
+    todayCountBadge: {
+      minWidth: 18,
+      height: 18,
+      borderRadius: 9,
+      paddingHorizontal: 5,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.colors.primaryBg,
+    },
+    todayCountText: {
+      fontSize: 10,
+      fontWeight: '800',
+      color: theme.colors.primary,
+    },
+    todayTotal: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: theme.colors.expense,
+    },
+    todayEmpty: {
+      fontSize: 12,
+      color: theme.colors.textMuted,
+      lineHeight: 18,
+    },
+    todayList: {
+      gap: 8,
+    },
+    todayRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    todayDot: {
+      width: 7,
+      height: 7,
+      borderRadius: 4,
+    },
+    todayDesc: {
+      flex: 1,
+      fontSize: 12,
+      fontWeight: '600',
+      color: theme.colors.textPrimary,
+    },
+    todayCat: {
+      maxWidth: 80,
+      fontSize: 10,
+      color: theme.colors.textMuted,
+    },
+    todayAmount: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: theme.colors.expense,
+    },
+    todayMore: {
+      marginTop: 4,
+      fontSize: 11,
       color: theme.colors.textMuted,
       fontWeight: '600',
     },

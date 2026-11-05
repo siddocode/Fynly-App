@@ -42,10 +42,21 @@ import { CategoryManagerModal } from '../components/CategoryManagerModal';
 import { BudgetPeriod } from '../types';
 import { useSafeRouter } from '../hooks/useSafeRouter';
 
+const getBudgetFormSignature = (b: any): string =>
+  JSON.stringify([
+    b.id,
+    b.baseLimitPaise !== undefined && b.baseLimitPaise !== null ? b.baseLimitPaise : b.limitPaise || '0',
+    b.name || '',
+    b.periodDetails?.startDate || '',
+    [...(b.categories || [])]
+      .map((c: any) => [c.categoryId, String(c.limitPaise)])
+      .sort((a: any[], c: any[]) => String(a[0]).localeCompare(String(c[0]))),
+  ]);
+
 export default function CreateBudgetScreen() {
   const router = useSafeRouter();
   const searchParams = useLocalSearchParams<{ reset?: string; budgetId?: string }>();
-  const isResetMode = searchParams.reset === 'true';
+  const isResetMode = String(searchParams.reset) === 'true';
 
   const queryClient = useQueryClient();
   const scrollViewRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
@@ -256,9 +267,23 @@ export default function CreateBudgetScreen() {
     },
   });
 
-  const handleLoadExistingBudget = (b: any) => {
+  const applyBudgetToForm = React.useCallback((b: any) => {
     setName(b.name || '');
-    const limitRupees = Number(BigInt(b.limitPaise || '0')) / 100;
+
+    // `limitPaise` from the API is the effective limit (base + income for the
+    // cycle). Editing must start from the user's original base amount so that
+    // income transactions don't inflate the value every time it is edited.
+    const basePaise =
+      b.baseLimitPaise !== undefined && b.baseLimitPaise !== null
+        ? b.baseLimitPaise
+        : b.limitPaise || '0';
+
+    let limitRupees = 0;
+    try {
+      limitRupees = Number(BigInt(basePaise)) / 100;
+    } catch {
+      limitRupees = Number(basePaise) / 100 || 0;
+    }
     setOverallLimitRupees(limitRupees > 0 ? String(limitRupees) : '');
 
     if (b.categories && b.categories.length > 0) {
@@ -271,9 +296,41 @@ export default function CreateBudgetScreen() {
       setCategoryLimits({});
     }
 
+    // Restore the budget's actual target month instead of defaulting to today.
+    const startRaw = b.periodDetails?.startDate;
+    if (startRaw) {
+      const start = new Date(startRaw);
+      if (!isNaN(start.getTime())) {
+        const month = start.getMonth() + 1;
+        const year = start.getFullYear();
+        const mName = start.toLocaleString('en-IN', { month: 'short' });
+        const fullMName = start.toLocaleString('en-IN', { month: 'long' });
+        const now = new Date();
+        const monthOption = {
+          label: `${mName} ${year}`,
+          fullLabel: `${fullMName} ${year}`,
+          defaultName: `${mName} Budget`,
+          month,
+          year,
+          isCurrent: now.getMonth() + 1 === month && now.getFullYear() === year,
+        };
+        setCustomMonthList((prev) =>
+          prev.some((p) => p.month === month && p.year === year)
+            ? prev
+            : [...prev, monthOption]
+        );
+        setSelectedMonth(monthOption);
+      }
+    }
+
     setIsPrimary(b.isActive ?? false);
     isPrimaryUserOverriddenRef.current = true;
-    router.setParams({ budgetId: b.id, reset: undefined });
+  }, []);
+
+  const handleLoadExistingBudget = (b: any) => {
+    applyBudgetToForm(b);
+    initializedBudgetSignatureRef.current = getBudgetFormSignature(b);
+    router.setParams({ budgetId: b.id, reset: 'false' });
     scrollViewRef.current?.scrollTo({ y: 0, animated: true });
   };
 
@@ -290,8 +347,7 @@ export default function CreateBudgetScreen() {
   const isPrimaryUserOverriddenRef = useRef(false);
 
   // Initialize fields with existing budget when editing
-  const initializedRef = useRef(false);
-  const lastResetModeRef = useRef<boolean | null>(null);
+  const initializedBudgetSignatureRef = useRef<string | null>(null);
 
   const handleResetToBlank = () => {
     setName('');
@@ -328,27 +384,17 @@ export default function CreateBudgetScreen() {
   useEffect(() => {
     if (isResetMode) {
       handleResetToBlank();
-      lastResetModeRef.current = true;
+      initializedBudgetSignatureRef.current = null;
       return;
     }
-    if (existingBudget && (!initializedRef.current || lastResetModeRef.current === true)) {
-      setName(existingBudget.name || '');
-      const limitRupees = Number(BigInt(existingBudget.limitPaise || '0')) / 100;
-      setOverallLimitRupees(limitRupees > 0 ? String(limitRupees) : '');
-
-      if (existingBudget.categories && existingBudget.categories.length > 0) {
-        const catMap: Record<string, string> = {};
-        for (const cat of existingBudget.categories) {
-          catMap[cat.categoryId] = String(Number(BigInt(cat.limitPaise)) / 100);
-        }
-        setCategoryLimits(catMap);
-      } else {
-        setCategoryLimits({});
+    if (existingBudget) {
+      const signature = getBudgetFormSignature(existingBudget);
+      if (initializedBudgetSignatureRef.current !== signature) {
+        applyBudgetToForm(existingBudget);
+        initializedBudgetSignatureRef.current = signature;
       }
-      initializedRef.current = true;
-      lastResetModeRef.current = false;
     }
-  }, [existingBudget, isResetMode]);
+  }, [existingBudget, isResetMode, applyBudgetToForm]);
 
   // Fetch categories
   const { data: categories, isLoading: categoriesLoading } = useQuery({
@@ -454,9 +500,9 @@ export default function CreateBudgetScreen() {
     },
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['budgets'] }),
-        queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
-        queryClient.invalidateQueries({ queryKey: ['insights'] }),
+        queryClient.resetQueries({ queryKey: ['budgets'] }),
+        queryClient.resetQueries({ queryKey: ['dashboard'] }),
+        queryClient.resetQueries({ queryKey: ['insights'] }),
       ]);
       setDeleteConfirmVisible(false);
       safeDismiss();

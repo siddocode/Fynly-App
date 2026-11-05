@@ -10,17 +10,10 @@ import {
   Tag,
   Target,
   Bell,
-  Wallet,
   Calendar,
   ChevronRight,
-  AlertCircle,
-  CheckCircle2,
-  FileSpreadsheet,
   LogIn,
   Sparkles,
-  ShieldCheck,
-  Plus,
-  Minus,
 } from 'lucide-react-native';
 import { api, formatPaiseToRupees } from '../../lib/api';
 import { useAuth } from '../../hooks/useAuth';
@@ -28,6 +21,7 @@ import { useTheme, Theme } from '../../lib/theme';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Header } from '../../components/Header';
+import { QuickExpenseCard } from '../../components/QuickExpenseCard';
 import { BudgetStatusLevel } from '../../types';
 
 export default function HomeScreen() {
@@ -90,20 +84,19 @@ export default function HomeScreen() {
   };
 
   // Only read user financial data when authenticated
-  const totalBalancePaise = isAuthenticated ? (summary?.totalBalancePaise || '0') : '0';
-  const todaySpentPaise = isAuthenticated ? (summary?.todaySpentPaise || '0') : '0';
   const budget = isAuthenticated ? summary?.budget : null;
   const dailyOverview = isAuthenticated ? summary?.dailyOverview : null;
   const recentTransactions = isAuthenticated ? (summary?.recentTransactions || []) : [];
 
   const currentMonthName = new Date().toLocaleString('en-IN', { month: 'long' });
 
-  // Safe percentage helper
-  const budgetUsagePercent = budget?.usagePercentage ?? 0;
-  const budgetBarWidth = Math.min(100, Math.max(0, budgetUsagePercent));
-
-  const dailyUsagePercent = dailyOverview?.usagePercentage ?? 0;
-  const dailyBarWidth = Math.min(100, Math.max(0, dailyUsagePercent));
+  const budgetBarWidth = Math.min(100, Math.max(0, budget?.usagePercentage ?? 0));
+  const budgetStatusColor = budget ? getStatusColor(budget.status) : theme.colors.primary;
+  const budgetLeftLabel = !budget
+    ? ''
+    : budget.status === 'EXCEEDED'
+    ? `${formatPaiseToRupees(BigInt(budget.spentPaise) - BigInt(budget.limitPaise))} over`
+    : `${formatPaiseToRupees(budget.remainingPaise)} left`;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -187,259 +180,90 @@ export default function HomeScreen() {
         {/* ================= AUTHENTICATED FINANCIAL DASHBOARD ================= */}
         {isAuthenticated && (
           <>
-            {/* 1. HERO TOTAL BUDGET CARD */}
-            {budget ? (
-              <TouchableOpacity
-                activeOpacity={0.88}
-                onPress={() => router.push('/budgets')}
-                style={styles.heroCardTouchable}
-              >
-                <Card style={styles.heroCard}>
-                  <View style={styles.heroHeaderRow}>
-                    <View style={styles.heroBadge}>
-                      <Target size={12} color={theme.colors.primary} />
-                      <Text style={styles.heroBadgeText} numberOfLines={1}>
-                        {budget.name || 'Monthly Budget'}
-                      </Text>
+            {/* Monthly budget overview */}
+            <View style={styles.overviewWrap}>
+              <Card style={styles.overviewCard}>
+                {budget ? (
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    onPress={() => router.push('/budgets')}
+                  >
+                    <View style={styles.budgetHeaderRow}>
+                      <Text style={styles.overviewLabel}>This month&apos;s budget</Text>
+                      <View style={styles.budgetHeaderRight}>
+                        <Text style={styles.budgetDays}>
+                          {budget.remainingDays} days left
+                        </Text>
+                        <ChevronRight size={13} color={theme.colors.textMuted} />
+                      </View>
                     </View>
-                    <View style={styles.heroDaysPill}>
-                      <Text style={styles.heroDaysPillText}>
-                        {budget.remainingDays}d left
-                      </Text>
-                      <ChevronRight size={12} color={theme.colors.textMuted} />
-                    </View>
-                  </View>
 
-                  <Text style={styles.heroLabel}>Total Monthly Budget</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
-                    <Text style={styles.heroAmount}>
+                    <Text
+                      style={styles.budgetAmount}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                    >
                       {formatPaiseToRupees(budget.limitPaise)}
                     </Text>
-                    {budget.incomePaise && BigInt(budget.incomePaise) > 0n ? (
-                      <View style={styles.incomeBoostPill}>
-                        <TrendingUp size={11} color={theme.colors.income} />
-                        <Text style={styles.incomeBoostText}>
-                          +{formatPaiseToRupees(budget.incomePaise)} income added
-                        </Text>
-                      </View>
-                    ) : null}
-                  </View>
 
-                  {/* Progress Line Bar */}
-                  <View style={styles.progressContainer}>
                     <View style={styles.progressBarBg}>
                       <View
                         style={[
                           styles.progressBarFill,
                           {
                             width: `${budgetBarWidth}%`,
-                            backgroundColor: getStatusColor(budget.status),
+                            backgroundColor: budgetStatusColor,
                           },
                         ]}
                       />
                     </View>
-                    <View style={styles.progressMetaRow}>
-                      <Text style={styles.progressSpentText}>
-                        {formatPaiseToRupees(budget.spentPaise)} spent ({budgetUsagePercent}%)
-                      </Text>
-                      <Text style={styles.progressRemainingText}>
-                        {formatPaiseToRupees(budget.remainingPaise)} left
-                      </Text>
-                    </View>
-                  </View>
-                </Card>
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.heroCardTouchable}>
-                <Card style={styles.heroCard}>
-                  <View style={styles.heroHeaderRow}>
-                    <View style={styles.heroBadge}>
-                      <Target size={12} color={theme.colors.primary} />
-                      <Text style={styles.heroBadgeText}>No Active Budget</Text>
-                    </View>
-                  </View>
 
-                  <Text style={styles.heroLabel}>Budget Management</Text>
-                  <Text style={styles.noBudgetHeading}>Set a Monthly Budget</Text>
-                  <Text style={styles.heroSubnote}>
-                    Create a budget to unlock your daily safe-to-spend allowance, live spending pace, and income boosts.
-                  </Text>
+                    <View style={styles.budgetMetaRow}>
+                      <Text style={[styles.budgetLeft, { color: budgetStatusColor }]}>
+                        {budgetLeftLabel}
+                      </Text>
+                      <Text style={styles.budgetSpent}>
+                        {formatPaiseToRupees(budget.spentPaise)} spent
+                      </Text>
+                    </View>
 
-                  <TouchableOpacity
-                    style={styles.setBudgetPrompt}
-                    onPress={() => router.push({ pathname: '/create-budget', params: { reset: 'true' } })}
-                    activeOpacity={0.8}
-                  >
-                    <View style={styles.setBudgetPromptLeft}>
-                      <Sparkles size={16} color={theme.colors.primary} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.setBudgetPromptTitle}>Create Budget Plan</Text>
-                        <Text style={styles.setBudgetPromptSubtitle}>
-                          Choose a month &amp; spending limit
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={styles.setBudgetBtn}>
-                      <Text style={styles.setBudgetBtnText}>+ Set</Text>
-                    </View>
+                    {budget.incomePaise && BigInt(budget.incomePaise) > 0n ? (
+                      <Text style={styles.budgetIncomeNote}>
+                        Includes {formatPaiseToRupees(budget.incomePaise)} added income
+                      </Text>
+                    ) : null}
                   </TouchableOpacity>
-                </Card>
-              </View>
-            )}
-
-            {/* 2. UNIFIED TODAY'S SPENDING HUB & ACTIONS */}
-            <View style={styles.dailySectionWrap}>
-              <Card
-                style={[
-                  styles.dailyHubCard,
-                  dailyOverview?.isExceeded && styles.dailyCardExceeded,
-                ]}
-              >
-                {/* Hub Header */}
-                <View style={styles.dailyHeaderRow}>
-                  <View style={styles.dailyTitleWrap}>
-                    <Calendar
-                      size={14}
-                      color={dailyOverview?.isExceeded ? theme.colors.expense : theme.colors.primary}
-                    />
-                    <Text style={styles.dailySectionLabel}>
-                      {dailyOverview && BigInt(dailyOverview.limitPaise || '0') > 0n
-                        ? "Today's Spending Pace"
-                        : "Today's Spending"}
-                    </Text>
-                  </View>
-
-                  {dailyOverview && BigInt(dailyOverview.limitPaise || '0') > 0n ? (
-                    dailyOverview.isExceeded ? (
-                      <View style={styles.dailyStatusPillDanger}>
-                        <AlertCircle size={10} color={theme.colors.expense} />
-                        <Text style={styles.dailyStatusTextDanger}>
-                          +{formatPaiseToRupees(dailyOverview.exceededByPaise)} over pace
-                        </Text>
-                      </View>
-                    ) : (
-                      <View style={styles.dailyStatusPillSafe}>
-                        <CheckCircle2 size={10} color={theme.colors.primary} />
-                        <Text style={styles.dailyStatusTextSafe}>
-                          {formatPaiseToRupees(dailyOverview.remainingPaise)} left today
-                        </Text>
-                      </View>
-                    )
-                  ) : null}
-                </View>
-
-                {/* Main Spending Row */}
-                <View style={styles.dailyMainRow}>
-                  <View>
-                    <Text style={styles.dailySpentAmount}>
-                      {formatPaiseToRupees(todaySpentPaise)}
-                    </Text>
-                    <Text style={styles.dailySpentSubtext}>spent today</Text>
-                  </View>
-                  {dailyOverview && BigInt(dailyOverview.limitPaise || '0') > 0n && (
-                    <View style={{ alignItems: 'flex-end' }}>
-                      <Text style={styles.dailyTargetPill}>
-                        Target {formatPaiseToRupees(dailyOverview.limitPaise)} / day
-                      </Text>
-                      <Text style={styles.dailyTargetSubtext}>
-                        from {budget ? budget.name : 'active plan'}
+                ) : (
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    onPress={() =>
+                      router.push({ pathname: '/create-budget', params: { reset: 'true' } })
+                    }
+                    style={styles.setBudgetRow}
+                  >
+                    <View style={styles.setBudgetIcon}>
+                      <Target size={16} color={theme.colors.primary} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.setBudgetTitle}>Set a monthly budget</Text>
+                      <Text style={styles.setBudgetSubtitle}>
+                        Unlock your daily safe-to-spend limit
                       </Text>
                     </View>
-                  )}
-                </View>
-
-                {/* Daily Progress Line Bar */}
-                {dailyOverview && BigInt(dailyOverview.limitPaise || '0') > 0n && (
-                  <View style={styles.dailyProgressBarBg}>
-                    <View
-                      style={[
-                        styles.dailyProgressBarFill,
-                        {
-                          width: `${dailyBarWidth}%`,
-                          backgroundColor: dailyOverview.isExceeded
-                            ? theme.colors.expense
-                            : dailyUsagePercent > 85
-                            ? theme.colors.alertAmber
-                            : theme.colors.primary,
-                        },
-                      ]}
-                    />
-                  </View>
+                    <ChevronRight size={16} color={theme.colors.textMuted} />
+                  </TouchableOpacity>
                 )}
-
-                {/* Connector Strip / Action Context Divider */}
-                <View style={styles.actionConnectorStrip}>
-                  <View style={styles.connectorLine} />
-                  <Text style={styles.connectorText}>Quick Log for Today</Text>
-                  <View style={styles.connectorLine} />
-                </View>
-
-                {/* Integrated Action Buttons: Add Expense & Add Income */}
-                <View style={styles.integratedActionsRow}>
-                  {/* Add Expense Button */}
-                  <TouchableOpacity
-                    style={[styles.integratedActionBtn, styles.expenseBtnBorder]}
-                    onPress={() => router.push('/add-transaction?type=EXPENSE')}
-                    activeOpacity={0.82}
-                  >
-                    <View style={styles.integratedActionHeader}>
-                      <View style={[styles.actionIconPill, { backgroundColor: 'rgba(251, 113, 133, 0.15)' }]}>
-                        <TrendingDown size={16} color={theme.colors.expense} />
-                      </View>
-                      <View style={styles.actionBadgeExpense}>
-                        <Minus size={9} color={theme.colors.expense} />
-                        <Text style={styles.actionBadgeTextExpense}>Expense</Text>
-                      </View>
-                    </View>
-                    <Text style={styles.integratedActionTitle}>Add Expense</Text>
-                    <Text style={styles.integratedActionSubtitle} numberOfLines={1}>
-                      Deducts from today&apos;s pace
-                    </Text>
-                  </TouchableOpacity>
-
-                  {/* Add Income Button */}
-                  <TouchableOpacity
-                    style={[styles.integratedActionBtn, styles.incomeBtnBorder]}
-                    onPress={() => router.push('/add-transaction?type=INCOME')}
-                    activeOpacity={0.82}
-                  >
-                    <View style={styles.integratedActionHeader}>
-                      <View style={[styles.actionIconPill, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
-                        <TrendingUp size={16} color={theme.colors.income} />
-                      </View>
-                      <View style={styles.actionBadgeIncome}>
-                        <Plus size={9} color={theme.colors.income} />
-                        <Text style={styles.actionBadgeTextIncome}>Income</Text>
-                      </View>
-                    </View>
-                    <Text style={styles.integratedActionTitle}>Add Income</Text>
-                    <Text style={styles.integratedActionSubtitle} numberOfLines={1}>
-                      Boosts month &amp; daily pace
-                    </Text>
-                  </TouchableOpacity>
-                </View>
               </Card>
+            </View>
 
-              {/* Secondary Shortcuts: Budgets & CSV Import */}
-              <View style={styles.secondaryShortcutsRow}>
-                <TouchableOpacity
-                  style={styles.secondaryShortcutPill}
-                  onPress={() => router.push('/budgets')}
-                  activeOpacity={0.7}
-                >
-                  <Target size={14} color={theme.colors.accent} />
-                  <Text style={styles.secondaryShortcutText}>Manage Budgets</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.secondaryShortcutPill}
-                  onPress={() => router.push('/import-statement')}
-                  activeOpacity={0.7}
-                >
-                  <FileSpreadsheet size={14} color={theme.colors.info} />
-                  <Text style={styles.secondaryShortcutText}>Import Statement CSV</Text>
-                </TouchableOpacity>
-              </View>
+            {/* Today: quick expense entry + today's items */}
+            <View style={styles.todayWrap}>
+              <QuickExpenseCard
+                dailyLimitPaise={dailyOverview?.limitPaise}
+                dailyRemainingPaise={dailyOverview?.remainingPaise}
+                dailyExceededByPaise={dailyOverview?.exceededByPaise}
+                isOverPace={dailyOverview?.isExceeded}
+              />
             </View>
 
             {/* 4. RECENT TRANSACTIONS */}
@@ -455,9 +279,9 @@ export default function HomeScreen() {
 
               {recentTransactions.length === 0 ? (
                 <Card style={styles.emptyCard} variant="subtle">
-                  <Text style={styles.emptyText}>No transactions recorded yet</Text>
+                  <Text style={styles.emptyText}>No transactions yet</Text>
                   <Text style={styles.emptySubtext}>
-                    Tap &ldquo;Add Expense&rdquo; or &ldquo;Add Income&rdquo; above to log your first transaction.
+                    Add your first expense above and it will show up here.
                   </Text>
                 </Card>
               ) : (
@@ -631,6 +455,100 @@ const getStyles = (theme: Theme, isDark: boolean) =>
       marginTop: 4,
     },
 
+    // OVERVIEW
+    overviewWrap: {
+      marginHorizontal: 16,
+      marginTop: 8,
+    },
+    overviewCard: {
+      padding: 20,
+      borderRadius: 20,
+      backgroundColor: theme.colors.surface,
+    },
+    overviewLabel: {
+      fontSize: 10.5,
+      fontWeight: '800',
+      color: theme.colors.textMuted,
+      letterSpacing: 1,
+    },
+    budgetAmount: {
+      fontSize: 38,
+      fontWeight: '800',
+      color: theme.colors.textPrimary,
+      letterSpacing: -1.2,
+      marginTop: 8,
+    },
+    budgetMetaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: 8,
+    },
+    budgetLeft: {
+      fontSize: 12.5,
+      fontWeight: '700',
+    },
+    budgetHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    budgetHeaderRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    budgetLabel: {
+      fontSize: 10.5,
+      fontWeight: '800',
+      color: theme.colors.textMuted,
+      letterSpacing: 0.8,
+      textTransform: 'uppercase',
+    },
+    budgetDays: {
+      fontSize: 11.5,
+      fontWeight: '600',
+      color: theme.colors.textMuted,
+    },
+    budgetSpent: {
+      fontSize: 12,
+      fontWeight: '500',
+      color: theme.colors.textMuted,
+    },
+    budgetIncomeNote: {
+      fontSize: 10.5,
+      fontWeight: '500',
+      color: theme.colors.textMuted,
+      marginTop: 6,
+    },
+    setBudgetRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    setBudgetIcon: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.colors.primaryBg,
+    },
+    setBudgetTitle: {
+      fontSize: 13.5,
+      fontWeight: '700',
+      color: theme.colors.textPrimary,
+    },
+    setBudgetSubtitle: {
+      fontSize: 11.5,
+      color: theme.colors.textMuted,
+      marginTop: 2,
+    },
+    todayWrap: {
+      marginTop: 12,
+      paddingHorizontal: 16,
+    },
+
     // 1. HERO TOTAL CARD
     heroCardTouchable: {
       marginHorizontal: 16,
@@ -733,6 +651,7 @@ const getStyles = (theme: Theme, isDark: boolean) =>
       backgroundColor: theme.colors.surfaceAlt,
       borderRadius: 999,
       overflow: 'hidden',
+      marginTop: 12,
     },
     progressBarFill: {
       height: '100%',

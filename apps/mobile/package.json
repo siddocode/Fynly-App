@@ -10,7 +10,9 @@
     "web": "ELECTRON_DISABLE_SANDBOX=1 expo start --web",
     "typecheck": "tsc --noEmit",
     "build": "expo export -p web",
-    "build:apk": "eas build -p android --profile preview"
+    "build:apk": "eas build -p android --profile preview",
+    "update:preview": "eas update --channel preview --message \"Manual preview update\"",
+    "update:production": "eas update --channel production --message \"Manual production update\""
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",
@@ -23,6 +25,7 @@
     "expo-notifications": "~58.1.7",
     "expo-router": "~58.0.29",
     "expo-status-bar": "~58.0.4",
+    "expo-updates": "~58.0.21",
     "lucide-react-native": "^0.475.0",
     "query-string": "^7.1.3",
     "react": "19.3.1",
@@ -40,7 +43,11 @@
   },
   "expo": {
     "install": {
-      "exclude": ["typescript", "react", "react-dom"]
+      "exclude": [
+        "typescript",
+        "react",
+        "react-dom"
+      ]
     }
   },
   "private": true

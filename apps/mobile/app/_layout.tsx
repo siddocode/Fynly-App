@@ -68,6 +68,12 @@ function AppNavigation() {
             headerShown: false,
           }}
         />
+        <Stack.Screen
+          name="tracker/[id]"
+          options={{
+            headerShown: false,
+          }}
+        />
       </Stack>
     </SafeAreaProvider>
   );

@@ -18,6 +18,8 @@ import {
   SpendingTrendsResponse,
   BankInstitution,
   BankSyncStatus,
+  SpendingTracker,
+  TrackerSummary,
 } from '../types';
 
 const DEFAULT_PROD_API_URL = 'https://fynly-app.onrender.com/api/v1';
@@ -464,6 +466,131 @@ export const api = {
     if (!res.ok || !json.success) {
       throw new Error(json.error?.message || 'Failed to clear transaction history');
     }
+  },
+
+  // Spending Trackers (no-budget spend sessions)
+  getTrackers: async (status: 'active' | 'ended' | 'all' = 'all'): Promise<SpendingTracker[]> => {
+    const res = await fetch(`${API_BASE_URL}/trackers?status=${status}`, {
+      headers: authHeaders(),
+    });
+    const json: ApiResponse<SpendingTracker[]> = await res.json();
+    if (!res.ok || !json.success || !json.data) {
+      throw new Error(json.error?.message || 'Failed to fetch spending trackers');
+    }
+    return json.data;
+  },
+
+  getTracker: async (id: string): Promise<SpendingTracker> => {
+    const res = await fetch(`${API_BASE_URL}/trackers/${id}`, {
+      headers: authHeaders(),
+    });
+    const json: ApiResponse<SpendingTracker> = await res.json();
+    if (!res.ok || !json.success || !json.data) {
+      throw new Error(json.error?.message || 'Failed to fetch spending tracker');
+    }
+    return json.data;
+  },
+
+  createTracker: async (payload: {
+    name?: string;
+    note?: string;
+    startedAt?: string;
+  }): Promise<SpendingTracker> => {
+    const res = await fetch(`${API_BASE_URL}/trackers`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(payload),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success) {
+      const error: any = new Error(json.error?.message || 'Failed to start tracker');
+      error.status = res.status;
+      error.details = json.error?.details;
+      throw error;
+    }
+    return json.data;
+  },
+
+  updateTracker: async (
+    id: string,
+    payload: { name?: string; note?: string | null }
+  ): Promise<SpendingTracker> => {
+    const res = await fetch(`${API_BASE_URL}/trackers/${id}`, {
+      method: 'PATCH',
+      headers: authHeaders(),
+      body: JSON.stringify(payload),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success) {
+      throw new Error(json.error?.message || 'Failed to update tracker');
+    }
+    return json.data;
+  },
+
+  addTrackerExpense: async (
+    id: string,
+    payload: {
+      accountId?: string;
+      categoryId?: string;
+      amountPaise: number | string;
+      date?: string;
+      description?: string;
+      merchantName?: string;
+      notes?: string;
+      allowDuplicate?: boolean;
+    }
+  ): Promise<{ transaction: Transaction; summary: TrackerSummary }> => {
+    const res = await fetch(`${API_BASE_URL}/trackers/${id}/expenses`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(payload),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success) {
+      const error: any = new Error(json.error?.message || 'Failed to add tracker expense');
+      error.status = res.status;
+      error.details = json.error?.details;
+      throw error;
+    }
+    return json.data;
+  },
+
+  endTracker: async (id: string): Promise<SpendingTracker> => {
+    const res = await fetch(`${API_BASE_URL}/trackers/${id}/end`, {
+      method: 'POST',
+      headers: authHeaders(),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success) {
+      throw new Error(json.error?.message || 'Failed to end tracker');
+    }
+    return json.data;
+  },
+
+  deleteTracker: async (id: string): Promise<void> => {
+    const res = await fetch(`${API_BASE_URL}/trackers/${id}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success) {
+      throw new Error(json.error?.message || 'Failed to delete tracker');
+    }
+  },
+
+  deleteTrackerExpense: async (
+    id: string,
+    transactionId: string
+  ): Promise<{ summary: TrackerSummary }> => {
+    const res = await fetch(`${API_BASE_URL}/trackers/${id}/expenses/${transactionId}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success) {
+      throw new Error(json.error?.message || 'Failed to delete tracker expense');
+    }
+    return json.data;
   },
 
   // Budgets

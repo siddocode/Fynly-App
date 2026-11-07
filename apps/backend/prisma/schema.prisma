@@ -49,6 +49,7 @@ model User {
   categories    Category[]
   budgets       Budget[]
   notifications NotificationEvent[]
+  trackers      SpendingTracker[]
 
   @@map("users")
 }
@@ -107,16 +108,19 @@ model Transaction {
   fingerprintHash String?           // Deterministic sha256 fingerprint for deduplication
   referenceNumber String?
   isRecurring     Boolean           @default(false)
+  trackerId       String?           // Optional link to a spending tracker session
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
   user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   account         FinancialAccount  @relation(fields: [accountId], references: [id], onDelete: Cascade)
   category        Category?         @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  tracker         SpendingTracker?  @relation(fields: [trackerId], references: [id], onDelete: SetNull)
 
   @@index([userId, date])
   @@index([accountId])
   @@index([fingerprintHash])
+  @@index([trackerId])
   @@map("transactions")
 }
 
@@ -157,6 +161,24 @@ model BudgetCategory {
 
   @@unique([budgetId, categoryId])
   @@map("budget_categories")
+}
+
+model SpendingTracker {
+  id        String   @id @default(uuid())
+  userId    String
+  name      String
+  note      String?
+  startedAt DateTime @default(now())
+  endedAt   DateTime?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@index([userId, isActive])
+  @@map("spending_trackers")
 }
 
 model NotificationEvent {

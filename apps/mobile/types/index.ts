@@ -42,6 +42,7 @@ export interface Transaction {
   notes?: string | null;
   fingerprintHash?: string | null;
   referenceNumber?: string | null;
+  trackerId?: string | null;
   isRecurring: boolean;
   createdAt: string;
   updatedAt: string;
@@ -135,6 +136,40 @@ export interface DashboardSummary {
   }>;
   accountsCount: number;
   recentTransactions: Transaction[];
+}
+
+export interface TrackerDailyBreakdown {
+  date: string;
+  label: string;
+  totalPaise: string;
+  count: number;
+}
+
+export interface TrackerSummary {
+  totalPaise: string;
+  expenseCount: number;
+  durationDays: number;
+  activeDays: number;
+  averagePerDayPaise: string;
+  averagePerActiveDayPaise: string;
+  highestSpendDay: TrackerDailyBreakdown | null;
+  firstExpenseDate: string | null;
+  lastExpenseDate: string | null;
+  dailyBreakdown: TrackerDailyBreakdown[];
+}
+
+export interface SpendingTracker {
+  id: string;
+  userId: string;
+  name: string;
+  note?: string | null;
+  startedAt: string;
+  endedAt?: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  summary: TrackerSummary;
+  transactions?: Transaction[];
 }
 
 export interface NotificationEvent {

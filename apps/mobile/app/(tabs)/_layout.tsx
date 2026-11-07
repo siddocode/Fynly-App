@@ -3,6 +3,7 @@ import { Tabs } from 'expo-router';
 import { Platform, View, StyleSheet } from 'react-native';
 import {
   LayoutDashboard,
+  NotebookPen,
   ReceiptText,
   Target,
   TrendingUp,
@@ -61,6 +62,13 @@ export default function TabLayout() {
         options={{
           title: 'Activity',
           tabBarIcon: ({ color, size }) => <ReceiptText size={size - 2} color={color as string} />,
+        }}
+      />
+      <Tabs.Screen
+        name="trackers"
+        options={{
+          title: 'Tracker',
+          tabBarIcon: ({ color, size }) => <NotebookPen size={size - 2} color={color as string} />,
         }}
       />
       <Tabs.Screen

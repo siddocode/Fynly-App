@@ -21,7 +21,7 @@ import {
   AlertTriangle,
   ArrowDownLeft,
   PlusCircle,
-  ArrowLeftRight,
+  // ArrowLeftRight, // Transfer option hidden for now
   Check,
   CheckCircle2,
   Plus,
@@ -327,6 +327,7 @@ export default function AddTransactionScreen() {
                 </Text>
               </TouchableOpacity>
 
+              {/* Transfer option hidden for now — no current use case.
               <TouchableOpacity
                 style={[
                   styles.typeBtn,
@@ -349,6 +350,7 @@ export default function AddTransactionScreen() {
                   Transfer
                 </Text>
               </TouchableOpacity>
+              */}
             </View>
 
             {successMessage && (

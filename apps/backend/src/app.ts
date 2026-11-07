@@ -13,6 +13,7 @@ import { notificationRouter } from './routes/notification.routes.js';
 import { statementRouter } from './routes/statement.routes.js';
 import { analyticsRouter } from './routes/analytics.routes.js';
 import { bankSyncRouter } from './routes/bankSync.routes.js';
+import { trackerRouter } from './routes/tracker.routes.js';
 import { errorHandler, AppError } from './middleware/error.middleware.js';
 import { helmetMiddleware, apiRateLimiter } from './middleware/security.middleware.js';
 
@@ -50,6 +51,7 @@ export const createApp = () => {
   app.use(`${env.API_PREFIX}/statements`, statementRouter);
   app.use(`${env.API_PREFIX}/analytics`, analyticsRouter);
   app.use(`${env.API_PREFIX}/bank-sync`, bankSyncRouter);
+  app.use(`${env.API_PREFIX}/trackers`, trackerRouter);
 
   // Catch-all 404 handler
   app.use((_req, _res, next) => {
